@@ -20,7 +20,7 @@ type DatabaseConfig struct {
 	DatabaseName string `mapstructure:"database_name"`
 
 	// ─── SQL (GORM) Specific ────────────────
-	Driver          string        `mapstructure:"driver"`   // e.g., "postgres", "mysql", "sqlite"
+	Driver          string        `mapstructure:"driver"`   // e.g., "postgres", "mysql"
 	SSLMode         string        `mapstructure:"ssl_mode"` // e.g., "disable", "require"
 	MaxOpenConns    int           `mapstructure:"max_open_conns"`
 	MaxIdleConns    int           `mapstructure:"max_idle_conns"`
@@ -35,7 +35,7 @@ type DatabaseConfig struct {
 }
 
 // type DatabaseConfig struct {
-// 	Type string `json:"type" yaml:"type"` // e.g. "postgres", "mysql", "sqlite", "mssql", "oracle", "mongodb"
+// 	Type string `json:"type" yaml:"type"` // e.g. "postgres", "mysql", "mssql", "oracle", "mongodb"
 // 	DSN  string `json:"dsn"  yaml:"dsn"`  // complete DSN connection string
 // }
 

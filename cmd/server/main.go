@@ -199,7 +199,7 @@ func main() {
 		fmt.Println("Failed to load config:", err)
 	}
 
-	repo, err := pkg.NewDatabaseService(cfg)
+	repo, err := pkg.NewDatabaseServiceWithInit(cfg)
 	if err != nil {
 		fmt.Println("Database Connection failed:", err)
 	}

@@ -13,7 +13,7 @@ database:
   ssl_mode: "disable"
   max_open_conns: 25
   max_idle_conns: 5
-  driver: "database driver like sqlite or postgres"
+  driver: "postgres"
 
 auth:
   jwt_secret: "your-super-secret-jwt-key-change-this-in-production"
