@@ -1,0 +1,26 @@
+server:
+  host: "server host"
+  port: "server port"
+  read_timeout: 30
+  write_timeout: 30
+
+database:
+  host: "database host"
+  port: 5432
+  username: "database username"
+  password: "database password"
+  database_name: "database name"
+  ssl_mode: "disable"
+  max_open_conns: 25
+  max_idle_conns: 5
+  driver: "postgres"
+
+auth:
+  jwt_secret: "your-super-secret-jwt-key-change-this-in-production"
+  token_expiry: 3600    # 1 hour
+  refresh_expiry: 86400 # 24 hours.
+
+redis:
+  enabled: true
+  url: "redis://localhost:6379"
+  password: ""
