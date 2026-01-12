@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
-	"godbgrest/pkg/models"
+	"go-postgres-rest/pkg/models"
 )
 
 // DBStats represents database statistics (define fields as needed)
@@ -14,63 +14,40 @@ type DBStats struct {
 	Idle            int
 }
 
-type DatabaseRepo interface {
-	// ─── Connection Management ──────────────────────────────
-	Ping(ctx context.Context) (bool, error)
-	// Close(ctx context.Context) error
-	// Stats(ctx context.Context) (DBStats, error)
-
-	// // ─── Schema Discovery / Introspection ───────────────────
-	ListCollections(schema string) ([]models.Table, error) // GetTables
-	// LoadCollectionMetadata(table *models.Table) error      // loadTableDetails
-	// LoadCollectionFields(table *models.Table) error        // loadTableColumns
-	// LoadPrimaryKeys(table *models.Table) error             // loadPrimaryKeys
-	// LoadForeignKeys(table *models.Table) error             // loadForeignKeys
-
-	// // ─── Query Execution / Building ─────────────────────────
-	ExecuteQuery(ctx context.Context, name string, params models.QueryParams) (any, error)
+// Core database operations interface
+type CoreRepo interface {
+	Ping() (bool, error)
+	ListCollections(schema string) ([]models.Table, error)
+	ExecuteQuery(name string, params models.QueryParams) (any, error)
 	ExecuteFunction(ctx context.Context, name string, args map[string]interface{}) (any, error)
-	// BuildQuery(ctx context.Context, name string, params models.QueryParams) (string, []any, error)
-	// BuildAdvancedFilter(filter models.ComplexFilter, argCounter int) (string, []any, error)
-	// BuildBasicFilter(filter models.QueryFilter, argCounter int) (string, []any, error)
-	// BuildTextSearch(fts models.FullTextSearch, argCounter int) (string, []any, error)
-	// Placeholder(argCounter int) string
+	ExecuteRawSQL(ctx context.Context, sql string) error
+}
 
-	// // ─── DDL (Create / Alter Structure) ─────────────────────
-	CreateCollection(req models.CreateTableRequest) error // CreateTable
-	// AdaptFieldType(dataType string) string                // adaptDataType
-	// CreateIndex(collection string, index models.IndexDefinition) error
-	AddField(collection string, req models.AddColumnRequest) error // AddColumn
+// DDL operations interface
+type DDLRepo interface {
+	CreateCollection(req models.CreateTableRequest) error
+	AddField(collection string, req models.AddColumnRequest) error
 	AlterCollection(collection string, req models.AlterTableRequest) error
-	// DropField(collection string, req models.DropColumnRequest) error // dropColumn
-	// ModifyField(collection string, req models.ModifyColumnRequest) error
-	// RenameField(collection string, req models.RenameColumnRequest) error
+	CheckTableExists(tableName string) (bool, error)
+}
 
-	// ─── DML (Data Manipulation) ────────────────────────────
-	Insert(ctx context.Context, collection string, data map[string]any) (any, error)
-	Update(ctx context.Context, collection string, id any, data map[string]any) (any, error)
-	Delete(ctx context.Context, collection string, id any) error
+// DML operations interface
+type DMLRepo interface {
+	Insert(collection string, data map[string]any) (any, error)
+	Update(collection string, id any, data map[string]any) (any, error)
+	Delete(collection string, id any) error
+}
 
-	// ─── Bulk Operations ──────────────────────────────────────
+// Bulk operations interface
+type BulkRepo interface {
 	BulkInsert(tableName string, records []map[string]interface{}) ([]map[string]interface{}, error)
-	Upsert(tableName string, data map[string]interface{}, conflictColumns []string, updateColumns []string) (map[string]interface{}, error)
 	BulkUpdate(tableName string, updates []map[string]interface{}, whereColumn string) (int64, error)
 	BulkDelete(tableName string, ids []interface{}, idColumn string) (int64, error)
+	Upsert(tableName string, data map[string]interface{}, conflictColumns, updateColumns []string) (map[string]interface{}, error)
+}
 
-	// ─── Migration Operations ──────────────────────────────────
-	ExecuteRawSQL(ctx context.Context, sql string) error
-	CheckTableExists(tableName string) (bool, error)
-	GetMigrationHistory() ([]map[string]interface{}, error)
-	RecordMigration(name, sql, checksum string) error
-
-	// ─── Performance Operations ────────────────────────────────
-	CreateIndex(tableName, indexName, columns string) error
-	GetPerformanceMetrics() (map[string]interface{}, error)
-	AnalyzeQuery(query string) ([]string, error)
-
-	// ─── Relationship Operations ────────────────────────────────
-
-	ForeignKeyConstraintExists(tableName string, constraintName string) (bool, error)
+// Relationship operations interface
+type RelationshipRepo interface {
 	CreateForeignKeyConstraint(relationship *models.RelationshipDefinition) error
 	DropRelationshipConstraints(relationship *models.RelationshipDefinition) error
 	CreateJoinTable(relationship *models.RelationshipDefinition, joinTable models.CreateJoinTableRequest) error
@@ -81,8 +58,32 @@ type DatabaseRepo interface {
 	SetManyToManyRelations(relationship *models.RelationshipDefinition, sourceID interface{}, targetIDs []interface{}, data map[string]interface{}) ([]map[string]interface{}, error)
 	RemoveOneToManyRelations(relationship *models.RelationshipDefinition, sourceID interface{}, targetIDs []interface{}) (int, error)
 	RemoveManyToManyRelations(relationship *models.RelationshipDefinition, sourceID interface{}, targetIDs []interface{}) (int, error)
-
 	GetRelationshipData(ctx context.Context, relationship *models.RelationshipDefinition, sourceID string, params models.QueryParams) ([]map[string]interface{}, error)
+}
+
+// Performance operations interface
+type PerformanceRepo interface {
+	CreateIndex(tableName, indexName, columns string) error
+	GetPerformanceMetrics() (map[string]interface{}, error)
+	AnalyzeQuery(query string) ([]string, error)
+}
+
+// Migration operations interface
+type MigrationRepo interface {
+	GetMigrationHistory() ([]map[string]interface{}, error)
+	RecordMigration(name, sql, checksum string) error
+}
+
+// DatabaseRepo is a composite interface that includes all repository operations
+// Implementations should satisfy this interface to provide complete database functionality
+type DatabaseRepo interface {
+	CoreRepo
+	DDLRepo
+	DMLRepo
+	BulkRepo
+	RelationshipRepo
+	PerformanceRepo
+	MigrationRepo
 }
 
 // DB interface considering only *sql.DB methods

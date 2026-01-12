@@ -1,7 +1,7 @@
 package interfaces
 
 import (
-	"godbgrest/pkg/models"
+	"go-postgres-rest/pkg/models"
 )
 
 type RelationshipService interface {

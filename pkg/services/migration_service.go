@@ -4,10 +4,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	"godbgrest/pkg/database/interfaces"
+	"go-postgres-rest/pkg/database/interfaces"
 	"time"
 
-	servicesInterface "godbgrest/pkg/services/interfaces"
+	servicesInterface "go-postgres-rest/pkg/services/interfaces"
 )
 
 type MigrationService struct {
@@ -87,7 +87,8 @@ func (s *MigrationService) GetMigrationHistory() ([]servicesInterface.Migration,
 		return nil, fmt.Errorf("failed to get migration history: %w", err)
 	}
 
-	var migrations []servicesInterface.Migration
+	// Pre-allocate migrations with known size
+	migrations := make([]servicesInterface.Migration, 0, len(history))
 	for _, record := range history {
 		migration := servicesInterface.Migration{
 			Name:     record["name"].(string),

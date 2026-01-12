@@ -1,61 +1,77 @@
 package config
 
 import (
+	"os"
+	"strconv"
 	"time"
 
-	"github.com/spf13/viper"
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	Database DatabaseConfig `mapstructure:"database"`
+	Database DatabaseConfig
 }
 
 type DatabaseConfig struct {
-	// ─── Common ─────────────────────────────
-	Type         string `mapstructure:"type"` // "sql" or "nosql"
-	Host         string `mapstructure:"host"`
-	Port         int    `mapstructure:"port"`
-	Username     string `mapstructure:"username"`
-	Password     string `mapstructure:"password"`
-	DatabaseName string `mapstructure:"database_name"`
+	// ─── Connection ─────────────────────────
+	Host         string
+	Port         int
+	Username     string
+	Password     string
+	DatabaseName string
 
-	// ─── SQL (GORM) Specific ────────────────
-	Driver          string        `mapstructure:"driver"`   // e.g., "postgres", "mysql"
-	SSLMode         string        `mapstructure:"ssl_mode"` // e.g., "disable", "require"
-	MaxOpenConns    int           `mapstructure:"max_open_conns"`
-	MaxIdleConns    int           `mapstructure:"max_idle_conns"`
-	ConnMaxLifetime time.Duration `mapstructure:"conn_max_lifetime"`
-
-	// ─── NoSQL (go-nosql / Mongo) Specific ─
-	AuthSource string        `mapstructure:"auth_source"` // default: "admin"
-	ReplicaSet string        `mapstructure:"replica_set"` // optional
-	URI        string        `mapstructure:"uri"`         // override full URI if needed
-	UseSRV     bool          `mapstructure:"use_srv"`     // if using SRV format (e.g., Atlas)
-	Timeout    time.Duration `mapstructure:"timeout"`
+	// ─── SQL (GORM) Specific ─────────────────
+	Driver          string // postgres | mysql | sqlite
+	SSLMode         string // disable | require
+	MaxOpenConns    int
+	MaxIdleConns    int
+	ConnMaxLifetime time.Duration
 }
 
-// type DatabaseConfig struct {
-// 	Type string `json:"type" yaml:"type"` // e.g. "postgres", "mysql", "mssql", "oracle", "mongodb"
-// 	DSN  string `json:"dsn"  yaml:"dsn"`  // complete DSN connection string
-// }
+// ─── Helpers ──────────────────────────────
+
+func parseInt(value string, defaultValue int) int {
+	if value == "" {
+		return defaultValue
+	}
+	v, err := strconv.Atoi(value)
+	if err != nil {
+		return defaultValue
+	}
+	return v
+}
+
+func parseDuration(value string, defaultValue time.Duration) time.Duration {
+	if value == "" {
+		return defaultValue
+	}
+	d, err := time.ParseDuration(value)
+	if err != nil {
+		return defaultValue
+	}
+	return d
+}
+
+// ─── Loader ───────────────────────────────
 
 func Load() (*Config, error) {
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath(".")
-	viper.AddConfigPath("./config")
+	// Load .env if present (optional but recommended)
+	_ = godotenv.Load()
 
-	// viper.AutomaticEnv()
-	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return nil, err
-		}
+	cfg := &Config{
+		Database: DatabaseConfig{
+			Host:            os.Getenv("DATABASE_HOST"),
+			Port:            parseInt(os.Getenv("DATABASE_PORT"), 5432),
+			Username:        os.Getenv("DATABASE_USER"),
+			Password:        os.Getenv("DATABASE_PASSWORD"),
+			DatabaseName:    os.Getenv("DATABASE_NAME"),
+			Driver:          "postgres",
+			SSLMode:         os.Getenv("DATABASE_SSL_MODE"),
+			MaxOpenConns:    parseInt(os.Getenv("DATABASE_MAX_OPEN_CONNS"), 25),
+			MaxIdleConns:    parseInt(os.Getenv("DATABASE_MAX_IDLE_CONNS"), 5),
+			ConnMaxLifetime: parseDuration(os.Getenv("DATABASE_CONN_MAX_LIFETIME"), time.Hour),
+		},
 	}
 
-	var config Config
-	if err := viper.Unmarshal(&config); err != nil {
-		return nil, err
-	}
-
-	return &config, nil
+	return cfg, nil
 }

@@ -1,18 +1,19 @@
 package pkg
 
 import (
+	"errors"
 	"fmt"
-	"godbgrest/pkg/config"
-	"godbgrest/pkg/database"
-	"godbgrest/pkg/database/interfaces"
-	"godbgrest/pkg/services"
+	"go-postgres-rest/pkg/config"
+	"go-postgres-rest/pkg/database"
+	"go-postgres-rest/pkg/database/interfaces"
+	"go-postgres-rest/pkg/services"
 
-	servicesInterface "godbgrest/pkg/services/interfaces"
+	servicesInterface "go-postgres-rest/pkg/services/interfaces"
 )
 
 type DatabaseService struct {
 	dbConfig *config.DatabaseConfig
-	dB       interfaces.DB
+	DB       interfaces.DB
 
 	TableService        servicesInterface.Table
 	BulkService         servicesInterface.Bulk
@@ -21,56 +22,42 @@ type DatabaseService struct {
 	RelationshipService servicesInterface.RelationshipService
 }
 
-func NewDatabaseServiceWithInit(cfg *config.Config) (*DatabaseService, error) {
-	dbs := &DatabaseService{}
-	if cfg != nil {
-		db, err := dbs.Connect(cfg)
-		if err != nil {
-			return nil, err
-		}
-		if err := dbs.InitServices(db); err != nil {
-			return nil, err
-		}
-	}
-	return dbs, nil
-}
-
 func NewDatabaseService() *DatabaseService {
 	return &DatabaseService{}
 }
 
-func (dbs *DatabaseService) Connect(cfg *config.Config) (interfaces.DB, error) {
+// allow tests to override factories
+var createConnectorFactory = database.NewDefaultDatabaseConnectorFactory
+var createRepository = database.NewRepository
+
+func NewDatabaseServiceWithInit(cfg *config.Config) (*DatabaseService, error) {
 	if cfg == nil {
-		return nil, fmt.Errorf("config cannot be nil")
+		return nil, errors.New("config cannot be nil")
 	}
 
-	dbs.dbConfig = &cfg.Database
+	fmt.Println("Initializing database service...", cfg.Database.Driver, &cfg.Database)
 
-	db, err := database.NewDB().Connect(cfg.Database.Driver, dbs.dbConfig)
+	// 1️⃣ Database connection
+	factory := createConnectorFactory()
+	db, err := factory.CreateConnection(cfg.Database.Driver, &cfg.Database)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
-	return db, nil
-}
 
-func (dbs *DatabaseService) InitServices(db interfaces.DB) error {
-
-	if dbs.dbConfig == nil {
-		return fmt.Errorf("database connection is not initialized")
-	}
-
-	dbs.dB = db
-
-	repo, err := database.NewRepository(dbs.dbConfig.Driver, dbs.dB)
+	// 2️⃣ Repository
+	repo, err := createRepository(cfg.Database.Driver, db)
 	if err != nil {
-		return fmt.Errorf("failed to create repository: %w", err)
+		return nil, fmt.Errorf("failed to create repository: %w", err)
 	}
 
-	dbs.TableService = services.NewTableService(repo)
-	dbs.BulkService = services.NewBulkService(repo)
-	dbs.MigrationService = services.NewMigrationService(repo)
-	dbs.PerformanceService = services.NewPerformanceService(repo)
-	dbs.RelationshipService = services.NewRelationshipService(repo)
-
-	return nil
+	// 3️⃣ Services (independent)
+	return &DatabaseService{
+		DB:                  db,
+		dbConfig:            &cfg.Database,
+		TableService:        services.NewTableService(repo),
+		BulkService:         services.NewBulkService(repo),
+		MigrationService:    services.NewMigrationService(repo),
+		PerformanceService:  services.NewPerformanceService(repo),
+		RelationshipService: services.NewRelationshipService(repo),
+	}, nil
 }

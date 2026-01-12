@@ -2,16 +2,16 @@ package postgres
 
 import (
 	"database/sql"
-	"godbgrest/pkg/database/interfaces"
-	"time"
-
 	"fmt"
-	"godbgrest/pkg/config"
+	"go-postgres-rest/pkg/config"
+	"go-postgres-rest/pkg/database/interfaces"
 
 	_ "github.com/lib/pq"
 )
 
 // ConnetPostgres creates a DSN string for Postgres using the provided config.
+//
+//go:noinline
 func Connect(cfg *config.DatabaseConfig) (interfaces.DB, error) {
 	dsn := fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
@@ -25,12 +25,12 @@ func Connect(cfg *config.DatabaseConfig) (interfaces.DB, error) {
 
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open database connection: %w", err)
 	}
 
 	db.SetMaxOpenConns(cfg.MaxOpenConns)
 	db.SetMaxIdleConns(cfg.MaxIdleConns)
-	db.SetConnMaxLifetime(time.Hour)
+	db.SetConnMaxLifetime(cfg.ConnMaxLifetime)
 
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)

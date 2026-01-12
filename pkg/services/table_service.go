@@ -3,12 +3,12 @@ package services
 import (
 	"context"
 	"fmt"
-	"godbgrest/pkg/models"
+	"go-postgres-rest/pkg/models"
 	"strings"
 
-	"godbgrest/pkg/database/interfaces"
+	"go-postgres-rest/pkg/database/interfaces"
 
-	servicesInterface "godbgrest/pkg/services/interfaces"
+	servicesInterface "go-postgres-rest/pkg/services/interfaces"
 )
 
 type TableService struct {
@@ -25,45 +25,54 @@ func (s *TableService) GetTables(schema string) ([]models.Table, error) {
 }
 
 // Data operations with advanced features
-func (s *TableService) GetTableData(ctx context.Context, tableName string, params models.QueryParams) ([]map[string]interface{}, error) {
-	result, err := s.repo.ExecuteQuery(ctx, tableName, params)
+func (s *TableService) GetTableData(tableName string, params models.QueryParams) ([]map[string]interface{}, error) {
+	result, err := s.repo.ExecuteQuery(tableName, params)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to execute query for table %s: %w", tableName, err)
 	}
 
 	data, ok := result.([]map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("unexpected result type from ExecuteQuery")
+		return nil, fmt.Errorf(
+			"invalid result type from ExecuteQuery: got %T, expected []map[string]interface{}",
+			result,
+		)
 	}
 	return data, nil
 }
 
-func (s *TableService) CreateRecord(ctx context.Context, tableName string, data map[string]interface{}) (map[string]interface{}, error) {
-	result, err := s.repo.Insert(ctx, tableName, data)
+func (s *TableService) CreateRecord(tableName string, data map[string]interface{}) (map[string]interface{}, error) {
+	result, err := s.repo.Insert(tableName, data)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to insert record into table %s: %w", tableName, err)
 	}
 	data, ok := result.(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("unexpected result type from Insert")
+		return nil, fmt.Errorf(
+			"invalid result type from Insert: got %T, expected map[string]interface{}",
+			result,
+		)
 	}
 	return data, nil
 }
 
-func (s *TableService) UpdateRecord(ctx context.Context, tableName string, id interface{}, data map[string]interface{}) (map[string]interface{}, error) {
-	result, err := s.repo.Update(ctx, tableName, id, data)
+func (s *TableService) UpdateRecord(tableName string, id interface{}, data map[string]interface{}) (map[string]interface{}, error) {
+	result, err := s.repo.Update(tableName, id, data)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to update record in table %s: %w", tableName, err)
 	}
 	data, ok := result.(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("unexpected result type from Update")
+		return nil, fmt.Errorf(
+			"invalid result type from Update: got %T, expected map[string]interface{}",
+			result,
+		)
 	}
 	return data, nil
 }
 
-func (s *TableService) DeleteRecord(ctx context.Context, tableName string, id interface{}) error {
-	return s.repo.Delete(ctx, tableName, id)
+func (s *TableService) DeleteRecord(tableName string, id interface{}) error {
+	return s.repo.Delete(tableName, id)
 }
 
 // DDL operations
@@ -108,7 +117,7 @@ func (s *TableService) validateCreateTableRequest(req models.CreateTableRequest)
 	columnNames := make(map[string]bool)
 	for _, col := range req.Columns {
 		if err := s.validateColumnDefinition(col); err != nil {
-			return err
+			return fmt.Errorf("invalid column %s: %w", col.Name, err)
 		}
 
 		if columnNames[col.Name] {
@@ -176,7 +185,10 @@ func (s *TableService) validateAlterTableRequest(req models.AlterTableRequest) e
 		if colReq, ok := req.Data.(models.AddColumnRequest); ok {
 			return s.validateColumnDefinition(colReq.Column)
 		}
-		return fmt.Errorf("invalid data for add_column action")
+		return fmt.Errorf(
+			"invalid data type for add_column action: got %T, expected models.AddColumnRequest",
+			req.Data,
+		)
 
 	case "drop_column":
 		if dropReq, ok := req.Data.(models.DropColumnRequest); ok {
@@ -185,7 +197,10 @@ func (s *TableService) validateAlterTableRequest(req models.AlterTableRequest) e
 			}
 			return nil
 		}
-		return fmt.Errorf("invalid data for drop_column action")
+		return fmt.Errorf(
+			"invalid data type for drop_column action: got %T, expected models.DropColumnRequest",
+			req.Data,
+		)
 
 	case "modify_column":
 		if modReq, ok := req.Data.(models.ModifyColumnRequest); ok {
@@ -194,7 +209,10 @@ func (s *TableService) validateAlterTableRequest(req models.AlterTableRequest) e
 			}
 			return nil
 		}
-		return fmt.Errorf("invalid data for modify_column action")
+		return fmt.Errorf(
+			"invalid data type for modify_column action: got %T, expected models.ModifyColumnRequest",
+			req.Data,
+		)
 
 	case "rename_column":
 		if renameReq, ok := req.Data.(models.RenameColumnRequest); ok {
@@ -203,7 +221,10 @@ func (s *TableService) validateAlterTableRequest(req models.AlterTableRequest) e
 			}
 			return nil
 		}
-		return fmt.Errorf("invalid data for rename_column action")
+		return fmt.Errorf(
+			"invalid data type for rename_column action: got %T, expected models.RenameColumnRequest",
+			req.Data,
+		)
 
 	default:
 		return fmt.Errorf("unsupported action: %s", req.Action)
@@ -223,47 +244,113 @@ func (s *TableService) BuildComplexQuery(tableName string, filters map[string]in
 				for i := range params.Select {
 					params.Select[i] = strings.TrimSpace(params.Select[i])
 				}
+			} else if value != nil {
+				return params, fmt.Errorf(
+					"invalid type for 'select' filter: got %T, expected string",
+					value,
+				)
 			}
 
 		case "joins":
 			if joinData, ok := value.([]interface{}); ok {
+				// Pre-allocate joins with known size
+				joins := make([]models.JoinClause, 0, len(joinData))
 				for _, joinItem := range joinData {
 					if joinMap, ok := joinItem.(map[string]interface{}); ok {
 						join := models.JoinClause{}
 						if table, ok := joinMap["table"].(string); ok {
 							join.Table = table
+						} else if _, exists := joinMap["table"]; exists {
+							return params, fmt.Errorf(
+								"invalid type for join 'table' field: got %T, expected string",
+								joinMap["table"],
+							)
 						}
 						if joinType, ok := joinMap["type"].(string); ok {
 							join.Type = joinType
+						} else if _, exists := joinMap["type"]; exists {
+							return params, fmt.Errorf(
+								"invalid type for join 'type' field: got %T, expected string",
+								joinMap["type"],
+							)
 						}
 						if on, ok := joinMap["on"].(string); ok {
 							join.On = on
+						} else if _, exists := joinMap["on"]; exists {
+							return params, fmt.Errorf(
+								"invalid type for join 'on' field: got %T, expected string",
+								joinMap["on"],
+							)
 						}
 						if alias, ok := joinMap["alias"].(string); ok {
 							join.Alias = alias
+						} else if _, exists := joinMap["alias"]; exists {
+							return params, fmt.Errorf(
+								"invalid type for join 'alias' field: got %T, expected string",
+								joinMap["alias"],
+							)
 						}
-						params.Joins = append(params.Joins, join)
+						joins = append(joins, join)
+					} else {
+						return params, fmt.Errorf(
+							"invalid join item type: got %T, expected map[string]interface{}",
+							joinItem,
+						)
 					}
 				}
+				params.Joins = joins
+			} else if value != nil {
+				return params, fmt.Errorf(
+					"invalid type for 'joins' filter: got %T, expected []interface{}",
+					value,
+				)
 			}
 
 		case "aggregates":
 			if aggData, ok := value.([]interface{}); ok {
+				// Pre-allocate aggregates with known size
+				aggregates := make([]models.AggregateFunction, 0, len(aggData))
 				for _, aggItem := range aggData {
 					if aggMap, ok := aggItem.(map[string]interface{}); ok {
 						agg := models.AggregateFunction{}
 						if function, ok := aggMap["function"].(string); ok {
 							agg.Function = function
+						} else if _, exists := aggMap["function"]; exists {
+							return params, fmt.Errorf(
+								"invalid type for aggregate 'function' field: got %T, expected string",
+								aggMap["function"],
+							)
 						}
 						if column, ok := aggMap["column"].(string); ok {
 							agg.Column = column
+						} else if _, exists := aggMap["column"]; exists {
+							return params, fmt.Errorf(
+								"invalid type for aggregate 'column' field: got %T, expected string",
+								aggMap["column"],
+							)
 						}
 						if alias, ok := aggMap["alias"].(string); ok {
 							agg.Alias = alias
+						} else if _, exists := aggMap["alias"]; exists {
+							return params, fmt.Errorf(
+								"invalid type for aggregate 'alias' field: got %T, expected string",
+								aggMap["alias"],
+							)
 						}
-						params.Aggregates = append(params.Aggregates, agg)
+						aggregates = append(aggregates, agg)
+					} else {
+						return params, fmt.Errorf(
+							"invalid aggregate item type: got %T, expected map[string]interface{}",
+							aggItem,
+						)
 					}
 				}
+				params.Aggregates = aggregates
+			} else if value != nil {
+				return params, fmt.Errorf(
+					"invalid type for 'aggregates' filter: got %T, expected []interface{}",
+					value,
+				)
 			}
 
 		case "group_by":
@@ -272,6 +359,11 @@ func (s *TableService) BuildComplexQuery(tableName string, filters map[string]in
 				for i := range params.GroupBy {
 					params.GroupBy[i] = strings.TrimSpace(params.GroupBy[i])
 				}
+			} else if value != nil {
+				return params, fmt.Errorf(
+					"invalid type for 'group_by' filter: got %T, expected string",
+					value,
+				)
 			}
 
 		case "range":
@@ -279,6 +371,11 @@ func (s *TableService) BuildComplexQuery(tableName string, filters map[string]in
 				rangeQuery := &models.RangeQuery{}
 				if column, ok := rangeMap["column"].(string); ok {
 					rangeQuery.Column = column
+				} else if _, exists := rangeMap["column"]; exists {
+					return params, fmt.Errorf(
+						"invalid type for range 'column' field: got %T, expected string",
+						rangeMap["column"],
+					)
 				}
 				if from, ok := rangeMap["from"]; ok {
 					rangeQuery.From = from
@@ -287,6 +384,11 @@ func (s *TableService) BuildComplexQuery(tableName string, filters map[string]in
 					rangeQuery.To = to
 				}
 				params.Range = rangeQuery
+			} else if value != nil {
+				return params, fmt.Errorf(
+					"invalid type for 'range' filter: got %T, expected map[string]interface{}",
+					value,
+				)
 			}
 
 		case "full_text":
@@ -294,18 +396,46 @@ func (s *TableService) BuildComplexQuery(tableName string, filters map[string]in
 				fts := &models.FullTextSearch{}
 				if query, ok := ftsMap["query"].(string); ok {
 					fts.Query = query
+				} else if _, exists := ftsMap["query"]; exists {
+					return params, fmt.Errorf(
+						"invalid type for full_text 'query' field: got %T, expected string",
+						ftsMap["query"],
+					)
 				}
 				if columns, ok := ftsMap["columns"].([]interface{}); ok {
+					// Pre-allocate columns with known size
+					columnsList := make([]string, 0, len(columns))
 					for _, col := range columns {
 						if colStr, ok := col.(string); ok {
-							fts.Columns = append(fts.Columns, colStr)
+							columnsList = append(columnsList, colStr)
+						} else {
+							return params, fmt.Errorf(
+								"invalid column type in 'columns' array: got %T, expected string",
+								col,
+							)
 						}
 					}
+					fts.Columns = columnsList
+				} else if _, exists := ftsMap["columns"]; exists {
+					return params, fmt.Errorf(
+						"invalid type for full_text 'columns' field: got %T, expected []interface{}",
+						ftsMap["columns"],
+					)
 				}
 				if searchType, ok := ftsMap["type"].(string); ok {
 					fts.Type = searchType
+				} else if _, exists := ftsMap["type"]; exists {
+					return params, fmt.Errorf(
+						"invalid type for full_text 'type' field: got %T, expected string",
+						ftsMap["type"],
+					)
 				}
 				params.FullText = fts
+			} else if value != nil {
+				return params, fmt.Errorf(
+					"invalid type for 'full_text' filter: got %T, expected map[string]interface{}",
+					value,
+				)
 			}
 		}
 	}
@@ -332,7 +462,6 @@ func (s *TableService) DropTable(ctx context.Context, tableName string) error {
 
 	// Drop the table
 	query := fmt.Sprintf(`DROP TABLE IF EXISTS %s`, tableName)
-	fmt.Println("query--->>>", query)
 	err := s.repo.ExecuteRawSQL(ctx, query)
 	if err != nil {
 		return fmt.Errorf("failed to drop table '%s': %w", tableName, err)
@@ -374,7 +503,7 @@ func (s *TableService) GetByFunction(ctx context.Context, functionName string, a
 
 	result, err := s.repo.ExecuteFunction(ctx, functionName, args)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to execute function %s: %w", functionName, err)
 	}
 
 	switch v := result.(type) {

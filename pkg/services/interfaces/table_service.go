@@ -2,7 +2,7 @@ package interfaces
 
 import (
 	"context"
-	"godbgrest/pkg/models"
+	"go-postgres-rest/pkg/models"
 )
 
 type Table interface {
@@ -10,10 +10,10 @@ type Table interface {
 	GetTables(schema string) ([]models.Table, error)
 
 	// Data operations
-	GetTableData(ctx context.Context, tableName string, params models.QueryParams) ([]map[string]interface{}, error)
-	CreateRecord(ctx context.Context, tableName string, data map[string]interface{}) (map[string]interface{}, error)
-	UpdateRecord(ctx context.Context, tableName string, id interface{}, data map[string]interface{}) (map[string]interface{}, error)
-	DeleteRecord(ctx context.Context, tableName string, id interface{}) error
+	GetTableData(tableName string, params models.QueryParams) ([]map[string]interface{}, error)
+	CreateRecord(tableName string, data map[string]interface{}) (map[string]interface{}, error)
+	UpdateRecord(tableName string, id interface{}, data map[string]interface{}) (map[string]interface{}, error)
+	DeleteRecord(tableName string, id interface{}) error
 
 	// DDL operations
 	CreateTable(req models.CreateTableRequest) error
