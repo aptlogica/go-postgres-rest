@@ -606,6 +606,120 @@ func TestTableServiceBuildComplexQueryMoreCases(t *testing.T) {
 	}
 }
 
+func TestTableServiceParseFiltersAndFunctions(t *testing.T) {
+	repo := &fakeRepo{}
+	svc := NewTableService(repo)
+
+	// parseSelectFilter
+	params := models.QueryParams{}
+	if err := parseSelectFilter("id, name", &params); err != nil {
+		t.Fatalf("parseSelectFilter valid string failed: %v", err)
+	}
+	if len(params.Select) != 2 || params.Select[0] != "id" || params.Select[1] != "name" {
+		t.Fatalf("unexpected select parsed: %v", params.Select)
+	}
+	if err := parseSelectFilter(nil, &params); err != nil {
+		t.Fatalf("parseSelectFilter nil should be no-op: %v", err)
+	}
+	if err := parseSelectFilter(123, &params); err == nil {
+		t.Fatalf("expected type error for select")
+	}
+
+	// parseJoinsFilter
+	params = models.QueryParams{}
+	joinInput := []interface{}{map[string]interface{}{"table": "profiles", "type": "left", "on": "users.id=profiles.user_id", "alias": "p"}}
+	if err := parseJoinsFilter(joinInput, &params); err != nil {
+		t.Fatalf("parseJoinsFilter valid input failed: %v", err)
+	}
+	if len(params.Joins) != 1 || params.Joins[0].Table != "profiles" || params.Joins[0].Alias != "p" {
+		t.Fatalf("unexpected joins parsed: %+v", params.Joins)
+	}
+	if err := parseJoinsFilter([]interface{}{map[string]interface{}{"table": 123}}, &params); err == nil {
+		t.Fatalf("expected join table type error")
+	}
+	if err := parseJoinsFilter("bad", &params); err == nil {
+		t.Fatalf("expected joins type error")
+	}
+
+	// parseFullTextFilter
+	params = models.QueryParams{}
+	ftsInput := map[string]interface{}{"query": "engineer", "columns": []interface{}{"name", "bio"}, "type": "websearch"}
+	if err := parseFullTextFilter(ftsInput, &params); err != nil {
+		t.Fatalf("parseFullTextFilter valid input failed: %v", err)
+	}
+	if params.FullText == nil || params.FullText.Query != "engineer" || len(params.FullText.Columns) != 2 {
+		t.Fatalf("unexpected full_text parsed: %+v", params.FullText)
+	}
+	if err := parseFullTextFilter(map[string]interface{}{"query": 123}, &params); err == nil {
+		t.Fatalf("expected full_text query type error")
+	}
+	if err := parseFullTextFilter(map[string]interface{}{"columns": "bad"}, &params); err == nil {
+		t.Fatalf("expected full_text columns type error")
+	}
+	if err := parseFullTextFilter(map[string]interface{}{"columns": []interface{}{123}}, &params); err == nil {
+		t.Fatalf("expected full_text column element type error")
+	}
+	if err := parseFullTextFilter("bad", &params); err == nil {
+		t.Fatalf("expected full_text type error")
+	}
+
+	ctx := context.Background()
+
+	// CreateFunction coverage
+	if err := svc.CreateFunction(ctx, "", "select 1"); err == nil {
+		t.Fatalf("expected validation error for missing function name")
+	}
+	if err := svc.CreateFunction(ctx, "fn()", ""); err == nil {
+		t.Fatalf("expected validation error for missing SQL")
+	}
+
+	repo.executeRawSQLFn = func(ctx context.Context, query string) error { repo.mark("ExecuteRawSQL"); return nil }
+	if err := svc.CreateFunction(ctx, "fn_test()", "returns void language sql as $$ select 1 $$"); err != nil {
+		t.Fatalf("CreateFunction success path failed: %v", err)
+	}
+	if repo.called["ExecuteRawSQL"] == 0 {
+		t.Fatalf("expected ExecuteRawSQL to be called")
+	}
+	repo.executeRawSQLFn = func(ctx context.Context, query string) error { return errors.New("create fail") }
+	if err := svc.CreateFunction(ctx, "fn_fail()", "returns void language sql as $$ select 1 $$"); err == nil {
+		t.Fatalf("expected CreateFunction execution error")
+	}
+
+	// GetByFunction coverage
+	repo.executeFunctionFn = func(ctx context.Context, name string, args map[string]interface{}) (any, error) {
+		return nil, errors.New("exec fail")
+	}
+	if _, err := svc.GetByFunction(ctx, "", nil); err == nil {
+		t.Fatalf("expected validation error for missing function name")
+	}
+	if _, err := svc.GetByFunction(ctx, "fn_fail", nil); err == nil {
+		t.Fatalf("expected execution error")
+	}
+
+	repo.executeFunctionFn = func(ctx context.Context, name string, args map[string]interface{}) (any, error) {
+		return []map[string]interface{}{{"id": 1}}, nil
+	}
+	rows, err := svc.GetByFunction(ctx, "fn_list", nil)
+	if err != nil || len(rows) != 1 || rows[0]["id"].(int) != 1 {
+		t.Fatalf("expected slice result, got %v err %v", rows, err)
+	}
+
+	repo.executeFunctionFn = func(ctx context.Context, name string, args map[string]interface{}) (any, error) {
+		return map[string]interface{}{"k": "v"}, nil
+	}
+	rows, err = svc.GetByFunction(ctx, "fn_map", nil)
+	if err != nil || len(rows) != 1 || rows[0]["k"] != "v" {
+		t.Fatalf("expected map wrapped in slice, got %v err %v", rows, err)
+	}
+
+	repo.executeFunctionFn = func(ctx context.Context, name string, args map[string]interface{}) (any, error) {
+		return "bad", nil
+	}
+	if _, err := svc.GetByFunction(ctx, "fn_bad", nil); err == nil {
+		t.Fatalf("expected type assertion error for unexpected result")
+	}
+}
+
 func TestTableServiceDDLHelpers(t *testing.T) {
 	var captured []string
 	repo := &fakeRepo{
@@ -801,7 +915,10 @@ func TestRelationshipServiceCreateFlows(t *testing.T) {
 	}
 
 	// many-to-many defaults and join table creation
-	repo.createJoinTableFn = func(rel *models.RelationshipDefinition, _ models.CreateJoinTableRequest) error { repo.mark("CreateJoinTable"); return nil }
+	repo.createJoinTableFn = func(rel *models.RelationshipDefinition, _ models.CreateJoinTableRequest) error {
+		repo.mark("CreateJoinTable")
+		return nil
+	}
 	relReq = models.CreateRelationshipRequest{
 		Name:        "user_tags",
 		Type:        models.RelationshipManyToMany,
@@ -888,7 +1005,9 @@ func TestRelationshipServiceDataRepoErrors(t *testing.T) {
 	}
 
 	// AddRelationshipData repo error paths
-	repo = &fakeRepo{setManyToManyFn: func(*models.RelationshipDefinition, interface{}, []interface{}, map[string]interface{}) ([]map[string]interface{}, error) { return nil, errors.New("add m2m") }}
+	repo = &fakeRepo{setManyToManyFn: func(*models.RelationshipDefinition, interface{}, []interface{}, map[string]interface{}) ([]map[string]interface{}, error) {
+		return nil, errors.New("add m2m")
+	}}
 	svc = NewRelationshipService(repo)
 	if resp, err := svc.AddRelationshipData(relMany, models.RelationshipDataRequest{}); err != nil || resp.Success || resp.Message == "" {
 		t.Fatalf("expected failure response for add many-to-many, got resp %+v err %v", resp, err)
@@ -901,13 +1020,17 @@ func TestRelationshipServiceDataRepoErrors(t *testing.T) {
 	}
 
 	// RemoveRelationshipData repo error paths
-	repo = &fakeRepo{removeManyToManyFn: func(*models.RelationshipDefinition, interface{}, []interface{}) (int, error) { return 0, errors.New("rm m2m") }}
+	repo = &fakeRepo{removeManyToManyFn: func(*models.RelationshipDefinition, interface{}, []interface{}) (int, error) {
+		return 0, errors.New("rm m2m")
+	}}
 	svc = NewRelationshipService(repo)
 	if resp, err := svc.RemoveRelationshipData(relMany, models.RelationshipDataRequest{}); err != nil || resp.Success || resp.Message == "" {
 		t.Fatalf("expected failure response for remove many-to-many, got resp %+v err %v", resp, err)
 	}
 
-	repo = &fakeRepo{removeOneToManyFn: func(*models.RelationshipDefinition, interface{}, []interface{}) (int, error) { return 0, errors.New("rm1-n") }}
+	repo = &fakeRepo{removeOneToManyFn: func(*models.RelationshipDefinition, interface{}, []interface{}) (int, error) {
+		return 0, errors.New("rm1-n")
+	}}
 	svc = NewRelationshipService(repo)
 	if resp, err := svc.RemoveRelationshipData(relOneMany, models.RelationshipDataRequest{}); err != nil || resp.Success || resp.Message == "" {
 		t.Fatalf("expected failure response for remove one-to-many, got resp %+v err %v", resp, err)
@@ -922,8 +1045,8 @@ func TestPerformanceService(t *testing.T) {
 	createCalls := 0
 	repo.listCollectionsFn = func(string) ([]models.Table, error) {
 		return []models.Table{{
-			Name: "users",
-			Columns: []models.Column{{Name: "fk_id"}, {Name: "status"}},
+			Name:        "users",
+			Columns:     []models.Column{{Name: "fk_id"}, {Name: "status"}},
 			ForeignKeys: []models.ForeignKey{{Columns: []string{"fk_id"}}},
 		}}, nil
 	}

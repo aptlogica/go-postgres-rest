@@ -21,6 +21,7 @@ func TestValidateTableName(t *testing.T) {
 		{name: "valid_starting_underscore", input: "_users", wantError: false},
 		{name: "valid_with_numbers", input: "user_table_2024", wantError: false},
 		{name: "valid_max_length", input: "a" + "bcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", wantError: false}, // 63 chars
+		{name: "valid_quoted_with_dash", input: `"titanic-dataset_1768297693"`, wantError: false},
 
 		// Invalid names
 		{name: "empty_string", input: "", wantError: true},
@@ -59,6 +60,8 @@ func TestValidateColumnName(t *testing.T) {
 		{name: "valid_with_underscore", input: "user_id", wantError: false},
 		{name: "valid_with_numbers", input: "col123", wantError: false},
 		{name: "valid_long", input: "very_long_column_name_that_is_still_valid", wantError: false},
+		{name: "valid_quoted", input: `"Survived"`, wantError: false},
+		{name: "valid_quoted_with_dash", input: `"survived-1768302130"`, wantError: false},
 
 		// Invalid names
 		{name: "empty", input: "", wantError: true},
@@ -141,6 +144,7 @@ func TestValidateQualifiedTableName(t *testing.T) {
 		{name: "schema_table", input: "public.users", wantError: false},
 		{name: "quoted_simple", input: `"users"`, wantError: false},
 		{name: "quoted_schema_table", input: `"public"."users"`, wantError: false},
+		{name: "quoted_schema_table_with_dash", input: `"public"."titanic-dataset_1768297693"`, wantError: false},
 
 		// Invalid
 		{name: "empty", input: "", wantError: true},

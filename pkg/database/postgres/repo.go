@@ -41,7 +41,29 @@ var (
 
 // ValidateTableName ensures table name is safe for SQL
 func ValidateTableName(name string) error {
-	if len(name) == 0 || len(name) > 63 {
+	name = strings.TrimSpace(name)
+
+	if len(name) == 0 {
+		return fmt.Errorf("invalid table name length: %d (must be 1-63)", len(name))
+	}
+
+	// Support quoted identifiers (e.g., "public"."titanic-dataset")
+	if strings.HasPrefix(name, `"`) || strings.HasSuffix(name, `"`) {
+		if !(strings.HasPrefix(name, `"`) && strings.HasSuffix(name, `"`)) {
+			return fmt.Errorf("invalid table name: mismatched quotes in '%s'", name)
+		}
+
+		inner := strings.TrimSuffix(strings.TrimPrefix(name, `"`), `"`)
+		if len(inner) == 0 || len(inner) > 63 {
+			return fmt.Errorf("invalid table name length: %d (must be 1-63)", len(inner))
+		}
+		if strings.Contains(inner, `"`) {
+			return fmt.Errorf("invalid table name: '%s' contains embedded quotes", name)
+		}
+		return nil
+	}
+
+	if len(name) > 63 {
 		return fmt.Errorf("invalid table name length: %d (must be 1-63)", len(name))
 	}
 	if !validTableRegex.MatchString(name) {
@@ -52,7 +74,29 @@ func ValidateTableName(name string) error {
 
 // ValidateColumnName ensures column name is safe for SQL
 func ValidateColumnName(name string) error {
-	if len(name) == 0 || len(name) > 63 {
+	name = strings.TrimSpace(name)
+
+	if len(name) == 0 {
+		return fmt.Errorf("invalid column name length: %d (must be 1-63)", len(name))
+	}
+
+	// Support quoted identifiers (e.g., "survived-123", "Survived")
+	if strings.HasPrefix(name, `"`) || strings.HasSuffix(name, `"`) {
+		if !(strings.HasPrefix(name, `"`) && strings.HasSuffix(name, `"`)) {
+			return fmt.Errorf("invalid column name: mismatched quotes in '%s'", name)
+		}
+
+		inner := strings.TrimSuffix(strings.TrimPrefix(name, `"`), `"`)
+		if len(inner) == 0 || len(inner) > 63 {
+			return fmt.Errorf("invalid column name length: %d (must be 1-63)", len(inner))
+		}
+		if strings.Contains(inner, `"`) {
+			return fmt.Errorf("invalid column name: '%s' contains embedded quotes", name)
+		}
+		return nil
+	}
+
+	if len(name) > 63 {
 		return fmt.Errorf("invalid column name length: %d (must be 1-63)", len(name))
 	}
 	if !validColumnRegex.MatchString(name) {
@@ -62,22 +106,48 @@ func ValidateColumnName(name string) error {
 }
 
 // ValidateQualifiedTableName ensures qualified table name (schema.table) is safe for SQL
-// Supports formats like "table" or "schema.table"
+// Supports formats like "table", "schema.table", "schema"."table", or "public"."relations"
 func ValidateQualifiedTableName(qualifiedName string) error {
+	qualifiedName = strings.TrimSpace(qualifiedName)
 	if len(qualifiedName) == 0 {
 		return fmt.Errorf("qualified table name cannot be empty")
 	}
 
-	// Remove quotes if present: "schema"."table" -> schema.table, "table" -> table
-	cleanedName := strings.Trim(strings.ReplaceAll(qualifiedName, `"."`, "."), `"`)
+	// Split on dots while respecting quoted identifiers
+	parts := make([]string, 0, 2)
+	var current strings.Builder
+	inQuotes := false
 
-	// Handle unquoted identifiers: schema.table or table
-	if strings.Contains(cleanedName, ".") {
-		parts := strings.Split(cleanedName, ".")
-		if len(parts) != 2 {
-			return fmt.Errorf("invalid qualified table name '%s': must contain exactly one dot for schema.table format", qualifiedName)
+	for _, r := range qualifiedName {
+		switch r {
+		case '"':
+			inQuotes = !inQuotes
+			current.WriteRune(r)
+		case '.':
+			if inQuotes {
+				current.WriteRune(r)
+				continue
+			}
+			parts = append(parts, current.String())
+			current.Reset()
+		default:
+			current.WriteRune(r)
 		}
+	}
 
+	if inQuotes {
+		return fmt.Errorf("invalid qualified table name '%s': unmatched quote", qualifiedName)
+	}
+
+	parts = append(parts, current.String())
+	if len(parts) == 0 {
+		return fmt.Errorf("qualified table name cannot be empty")
+	}
+	if len(parts) > 2 {
+		return fmt.Errorf("invalid qualified table name '%s': must contain at most one dot for schema.table format", qualifiedName)
+	}
+
+	if len(parts) == 2 {
 		schema := strings.TrimSpace(parts[0])
 		table := strings.TrimSpace(parts[1])
 
@@ -90,8 +160,7 @@ func ValidateQualifiedTableName(qualifiedName string) error {
 		return nil
 	}
 
-	// No schema prefix, just table name
-	if err := ValidateTableName(cleanedName); err != nil {
+	if err := ValidateTableName(parts[0]); err != nil {
 		return fmt.Errorf("invalid table '%s': %w", qualifiedName, err)
 	}
 	return nil

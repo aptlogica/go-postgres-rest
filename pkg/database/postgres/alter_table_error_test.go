@@ -1,0 +1,37 @@
+package postgres
+
+import (
+	"strings"
+	"testing"
+
+	"go-postgres-rest/pkg/models"
+)
+
+func TestAlterCollection_InvalidDataTypes(t *testing.T) {
+	svc := &PostgresDbService{}
+	table := "public.users"
+
+	tests := []struct {
+		name   string
+		action string
+		data   interface{}
+		wantIn string
+	}{
+		{"drop_column wrong type", "drop_column", "not-a-request", "invalid data type for drop_column"},
+		{"modify_column wrong type", "modify_column", 123, "invalid data type for modify_column"},
+		{"rename_column wrong type", "rename_column", []string{"old", "new"}, "invalid data type for rename_column"},
+		{"unsupported action", "noop_action", nil, "unsupported alter table action"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := svc.AlterCollection(table, models.AlterTableRequest{Action: tt.action, Data: tt.data})
+			if err == nil {
+				t.Fatalf("expected error")
+			}
+			if !strings.Contains(err.Error(), tt.wantIn) {
+				t.Fatalf("error %q does not contain %q", err.Error(), tt.wantIn)
+			}
+		})
+	}
+}

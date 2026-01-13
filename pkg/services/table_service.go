@@ -235,212 +235,245 @@ func (s *TableService) validateAlterTableRequest(req models.AlterTableRequest) e
 func (s *TableService) BuildComplexQuery(tableName string, filters map[string]interface{}) (models.QueryParams, error) {
 	params := models.QueryParams{}
 
-	// Handle different query parameters
 	for key, value := range filters {
 		switch key {
 		case "select":
-			if selectStr, ok := value.(string); ok {
-				params.Select = strings.Split(selectStr, ",")
-				for i := range params.Select {
-					params.Select[i] = strings.TrimSpace(params.Select[i])
-				}
-			} else if value != nil {
-				return params, fmt.Errorf(
-					"invalid type for 'select' filter: got %T, expected string",
-					value,
-				)
+			if err := parseSelectFilter(value, &params); err != nil {
+				return params, err
 			}
-
 		case "joins":
-			if joinData, ok := value.([]interface{}); ok {
-				// Pre-allocate joins with known size
-				joins := make([]models.JoinClause, 0, len(joinData))
-				for _, joinItem := range joinData {
-					if joinMap, ok := joinItem.(map[string]interface{}); ok {
-						join := models.JoinClause{}
-						if table, ok := joinMap["table"].(string); ok {
-							join.Table = table
-						} else if _, exists := joinMap["table"]; exists {
-							return params, fmt.Errorf(
-								"invalid type for join 'table' field: got %T, expected string",
-								joinMap["table"],
-							)
-						}
-						if joinType, ok := joinMap["type"].(string); ok {
-							join.Type = joinType
-						} else if _, exists := joinMap["type"]; exists {
-							return params, fmt.Errorf(
-								"invalid type for join 'type' field: got %T, expected string",
-								joinMap["type"],
-							)
-						}
-						if on, ok := joinMap["on"].(string); ok {
-							join.On = on
-						} else if _, exists := joinMap["on"]; exists {
-							return params, fmt.Errorf(
-								"invalid type for join 'on' field: got %T, expected string",
-								joinMap["on"],
-							)
-						}
-						if alias, ok := joinMap["alias"].(string); ok {
-							join.Alias = alias
-						} else if _, exists := joinMap["alias"]; exists {
-							return params, fmt.Errorf(
-								"invalid type for join 'alias' field: got %T, expected string",
-								joinMap["alias"],
-							)
-						}
-						joins = append(joins, join)
-					} else {
-						return params, fmt.Errorf(
-							"invalid join item type: got %T, expected map[string]interface{}",
-							joinItem,
-						)
-					}
-				}
-				params.Joins = joins
-			} else if value != nil {
-				return params, fmt.Errorf(
-					"invalid type for 'joins' filter: got %T, expected []interface{}",
-					value,
-				)
+			if err := parseJoinsFilter(value, &params); err != nil {
+				return params, err
 			}
-
 		case "aggregates":
-			if aggData, ok := value.([]interface{}); ok {
-				// Pre-allocate aggregates with known size
-				aggregates := make([]models.AggregateFunction, 0, len(aggData))
-				for _, aggItem := range aggData {
-					if aggMap, ok := aggItem.(map[string]interface{}); ok {
-						agg := models.AggregateFunction{}
-						if function, ok := aggMap["function"].(string); ok {
-							agg.Function = function
-						} else if _, exists := aggMap["function"]; exists {
-							return params, fmt.Errorf(
-								"invalid type for aggregate 'function' field: got %T, expected string",
-								aggMap["function"],
-							)
-						}
-						if column, ok := aggMap["column"].(string); ok {
-							agg.Column = column
-						} else if _, exists := aggMap["column"]; exists {
-							return params, fmt.Errorf(
-								"invalid type for aggregate 'column' field: got %T, expected string",
-								aggMap["column"],
-							)
-						}
-						if alias, ok := aggMap["alias"].(string); ok {
-							agg.Alias = alias
-						} else if _, exists := aggMap["alias"]; exists {
-							return params, fmt.Errorf(
-								"invalid type for aggregate 'alias' field: got %T, expected string",
-								aggMap["alias"],
-							)
-						}
-						aggregates = append(aggregates, agg)
-					} else {
-						return params, fmt.Errorf(
-							"invalid aggregate item type: got %T, expected map[string]interface{}",
-							aggItem,
-						)
-					}
-				}
-				params.Aggregates = aggregates
-			} else if value != nil {
-				return params, fmt.Errorf(
-					"invalid type for 'aggregates' filter: got %T, expected []interface{}",
-					value,
-				)
+			if err := parseAggregatesFilter(value, &params); err != nil {
+				return params, err
 			}
-
 		case "group_by":
-			if groupStr, ok := value.(string); ok {
-				params.GroupBy = strings.Split(groupStr, ",")
-				for i := range params.GroupBy {
-					params.GroupBy[i] = strings.TrimSpace(params.GroupBy[i])
-				}
-			} else if value != nil {
-				return params, fmt.Errorf(
-					"invalid type for 'group_by' filter: got %T, expected string",
-					value,
-				)
+			if err := parseGroupByFilter(value, &params); err != nil {
+				return params, err
 			}
-
 		case "range":
-			if rangeMap, ok := value.(map[string]interface{}); ok {
-				rangeQuery := &models.RangeQuery{}
-				if column, ok := rangeMap["column"].(string); ok {
-					rangeQuery.Column = column
-				} else if _, exists := rangeMap["column"]; exists {
-					return params, fmt.Errorf(
-						"invalid type for range 'column' field: got %T, expected string",
-						rangeMap["column"],
-					)
-				}
-				if from, ok := rangeMap["from"]; ok {
-					rangeQuery.From = from
-				}
-				if to, ok := rangeMap["to"]; ok {
-					rangeQuery.To = to
-				}
-				params.Range = rangeQuery
-			} else if value != nil {
-				return params, fmt.Errorf(
-					"invalid type for 'range' filter: got %T, expected map[string]interface{}",
-					value,
-				)
+			if err := parseRangeFilter(value, &params); err != nil {
+				return params, err
 			}
-
 		case "full_text":
-			if ftsMap, ok := value.(map[string]interface{}); ok {
-				fts := &models.FullTextSearch{}
-				if query, ok := ftsMap["query"].(string); ok {
-					fts.Query = query
-				} else if _, exists := ftsMap["query"]; exists {
-					return params, fmt.Errorf(
-						"invalid type for full_text 'query' field: got %T, expected string",
-						ftsMap["query"],
-					)
-				}
-				if columns, ok := ftsMap["columns"].([]interface{}); ok {
-					// Pre-allocate columns with known size
-					columnsList := make([]string, 0, len(columns))
-					for _, col := range columns {
-						if colStr, ok := col.(string); ok {
-							columnsList = append(columnsList, colStr)
-						} else {
-							return params, fmt.Errorf(
-								"invalid column type in 'columns' array: got %T, expected string",
-								col,
-							)
-						}
-					}
-					fts.Columns = columnsList
-				} else if _, exists := ftsMap["columns"]; exists {
-					return params, fmt.Errorf(
-						"invalid type for full_text 'columns' field: got %T, expected []interface{}",
-						ftsMap["columns"],
-					)
-				}
-				if searchType, ok := ftsMap["type"].(string); ok {
-					fts.Type = searchType
-				} else if _, exists := ftsMap["type"]; exists {
-					return params, fmt.Errorf(
-						"invalid type for full_text 'type' field: got %T, expected string",
-						ftsMap["type"],
-					)
-				}
-				params.FullText = fts
-			} else if value != nil {
-				return params, fmt.Errorf(
-					"invalid type for 'full_text' filter: got %T, expected map[string]interface{}",
-					value,
-				)
+			if err := parseFullTextFilter(value, &params); err != nil {
+				return params, err
 			}
 		}
 	}
 
 	return params, nil
+}
+
+func parseSelectFilter(value interface{}, params *models.QueryParams) error {
+	if selectStr, ok := value.(string); ok {
+		params.Select = strings.Split(selectStr, ",")
+		for i := range params.Select {
+			params.Select[i] = strings.TrimSpace(params.Select[i])
+		}
+	} else if value != nil {
+		return fmt.Errorf(
+			"invalid type for 'select' filter: got %T, expected string",
+			value,
+		)
+	}
+	return nil
+}
+
+func parseJoinsFilter(value interface{}, params *models.QueryParams) error {
+	if joinData, ok := value.([]interface{}); ok {
+		joins := make([]models.JoinClause, 0, len(joinData))
+		for _, joinItem := range joinData {
+			if joinMap, ok := joinItem.(map[string]interface{}); ok {
+				join := models.JoinClause{}
+				if table, ok := joinMap["table"].(string); ok {
+					join.Table = table
+				} else if _, exists := joinMap["table"]; exists {
+					return fmt.Errorf(
+						"invalid type for join 'table' field: got %T, expected string",
+						joinMap["table"],
+					)
+				}
+				if joinType, ok := joinMap["type"].(string); ok {
+					join.Type = joinType
+				} else if _, exists := joinMap["type"]; exists {
+					return fmt.Errorf(
+						"invalid type for join 'type' field: got %T, expected string",
+						joinMap["type"],
+					)
+				}
+				if on, ok := joinMap["on"].(string); ok {
+					join.On = on
+				} else if _, exists := joinMap["on"]; exists {
+					return fmt.Errorf(
+						"invalid type for join 'on' field: got %T, expected string",
+						joinMap["on"],
+					)
+				}
+				if alias, ok := joinMap["alias"].(string); ok {
+					join.Alias = alias
+				} else if _, exists := joinMap["alias"]; exists {
+					return fmt.Errorf(
+						"invalid type for join 'alias' field: got %T, expected string",
+						joinMap["alias"],
+					)
+				}
+				joins = append(joins, join)
+			} else {
+				return fmt.Errorf(
+					"invalid join item type: got %T, expected map[string]interface{}",
+					joinItem,
+				)
+			}
+		}
+		params.Joins = joins
+	} else if value != nil {
+		return fmt.Errorf(
+			"invalid type for 'joins' filter: got %T, expected []interface{}",
+			value,
+		)
+	}
+	return nil
+}
+
+func parseAggregatesFilter(value interface{}, params *models.QueryParams) error {
+	if aggData, ok := value.([]interface{}); ok {
+		aggregates := make([]models.AggregateFunction, 0, len(aggData))
+		for _, aggItem := range aggData {
+			if aggMap, ok := aggItem.(map[string]interface{}); ok {
+				agg := models.AggregateFunction{}
+				if function, ok := aggMap["function"].(string); ok {
+					agg.Function = function
+				} else if _, exists := aggMap["function"]; exists {
+					return fmt.Errorf(
+						"invalid type for aggregate 'function' field: got %T, expected string",
+						aggMap["function"],
+					)
+				}
+				if column, ok := aggMap["column"].(string); ok {
+					agg.Column = column
+				} else if _, exists := aggMap["column"]; exists {
+					return fmt.Errorf(
+						"invalid type for aggregate 'column' field: got %T, expected string",
+						aggMap["column"],
+					)
+				}
+				if alias, ok := aggMap["alias"].(string); ok {
+					agg.Alias = alias
+				} else if _, exists := aggMap["alias"]; exists {
+					return fmt.Errorf(
+						"invalid type for aggregate 'alias' field: got %T, expected string",
+						aggMap["alias"],
+					)
+				}
+				aggregates = append(aggregates, agg)
+			} else {
+				return fmt.Errorf(
+					"invalid aggregate item type: got %T, expected map[string]interface{}",
+					aggItem,
+				)
+			}
+		}
+		params.Aggregates = aggregates
+	} else if value != nil {
+		return fmt.Errorf(
+			"invalid type for 'aggregates' filter: got %T, expected []interface{}",
+			value,
+		)
+	}
+	return nil
+}
+
+func parseGroupByFilter(value interface{}, params *models.QueryParams) error {
+	if groupStr, ok := value.(string); ok {
+		params.GroupBy = strings.Split(groupStr, ",")
+		for i := range params.GroupBy {
+			params.GroupBy[i] = strings.TrimSpace(params.GroupBy[i])
+		}
+	} else if value != nil {
+		return fmt.Errorf(
+			"invalid type for 'group_by' filter: got %T, expected string",
+			value,
+		)
+	}
+	return nil
+}
+
+func parseRangeFilter(value interface{}, params *models.QueryParams) error {
+	if rangeMap, ok := value.(map[string]interface{}); ok {
+		rangeQuery := &models.RangeQuery{}
+		if column, ok := rangeMap["column"].(string); ok {
+			rangeQuery.Column = column
+		} else if _, exists := rangeMap["column"]; exists {
+			return fmt.Errorf(
+				"invalid type for range 'column' field: got %T, expected string",
+				rangeMap["column"],
+			)
+		}
+		if from, ok := rangeMap["from"]; ok {
+			rangeQuery.From = from
+		}
+		if to, ok := rangeMap["to"]; ok {
+			rangeQuery.To = to
+		}
+		params.Range = rangeQuery
+	} else if value != nil {
+		return fmt.Errorf(
+			"invalid type for 'range' filter: got %T, expected map[string]interface{}",
+			value,
+		)
+	}
+	return nil
+}
+
+func parseFullTextFilter(value interface{}, params *models.QueryParams) error {
+	if ftsMap, ok := value.(map[string]interface{}); ok {
+		fts := &models.FullTextSearch{}
+		if query, ok := ftsMap["query"].(string); ok {
+			fts.Query = query
+		} else if _, exists := ftsMap["query"]; exists {
+			return fmt.Errorf(
+				"invalid type for full_text 'query' field: got %T, expected string",
+				ftsMap["query"],
+			)
+		}
+		if columns, ok := ftsMap["columns"].([]interface{}); ok {
+			columnsList := make([]string, 0, len(columns))
+			for _, col := range columns {
+				if colStr, ok := col.(string); ok {
+					columnsList = append(columnsList, colStr)
+				} else {
+					return fmt.Errorf(
+						"invalid column type in 'columns' array: got %T, expected string",
+						col,
+					)
+				}
+			}
+			fts.Columns = columnsList
+		} else if _, exists := ftsMap["columns"]; exists {
+			return fmt.Errorf(
+				"invalid type for full_text 'columns' field: got %T, expected []interface{}",
+				ftsMap["columns"],
+			)
+		}
+		if searchType, ok := ftsMap["type"].(string); ok {
+			fts.Type = searchType
+		} else if _, exists := ftsMap["type"]; exists {
+			return fmt.Errorf(
+				"invalid type for full_text 'type' field: got %T, expected string",
+				ftsMap["type"],
+			)
+		}
+		params.FullText = fts
+	} else if value != nil {
+		return fmt.Errorf(
+			"invalid type for 'full_text' filter: got %T, expected map[string]interface{}",
+			value,
+		)
+	}
+	return nil
 }
 
 func (s *TableService) CreateSchema(ctx context.Context, schemaName string) error {

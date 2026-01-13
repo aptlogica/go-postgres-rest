@@ -9,6 +9,10 @@ import (
 	_ "github.com/lib/pq"
 )
 
+// allow tests to stub sql.Open/Ping
+var openDB = sql.Open
+var pingDB = func(db *sql.DB) error { return db.Ping() }
+
 // ConnetPostgres creates a DSN string for Postgres using the provided config.
 //
 //go:noinline
@@ -23,7 +27,7 @@ func Connect(cfg *config.DatabaseConfig) (interfaces.DB, error) {
 		cfg.SSLMode,
 	)
 
-	db, err := sql.Open("postgres", dsn)
+	db, err := openDB("postgres", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database connection: %w", err)
 	}
@@ -32,7 +36,7 @@ func Connect(cfg *config.DatabaseConfig) (interfaces.DB, error) {
 	db.SetMaxIdleConns(cfg.MaxIdleConns)
 	db.SetConnMaxLifetime(cfg.ConnMaxLifetime)
 
-	if err := db.Ping(); err != nil {
+	if err := pingDB(db); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 

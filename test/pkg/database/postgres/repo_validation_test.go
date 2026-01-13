@@ -42,6 +42,8 @@ func TestValidateColumnName(t *testing.T) {
 		{"empty", "", true},
 		{"too long", strings.Repeat("b", 70), true},
 		{"bad chars", "1st", true},
+		{"quoted", `"Survived"`, false},
+		{"quoted dash", `"survived-1768302130"`, false},
 	}
 
 	for _, tt := range cases {
@@ -66,6 +68,7 @@ func TestValidateQualifiedTableName(t *testing.T) {
 		{"table only", "users", false},
 		{"schema table", "public.users", false},
 		{"quoted schema table", `"public"."users"`, false},
+		{"quoted schema table with dash", `"public"."titanic-dataset_1768297693"`, false},
 		{"multiple dots", "a.b.c", true},
 		{"bad schema", "in-valid.users", true},
 		{"empty", "", true},

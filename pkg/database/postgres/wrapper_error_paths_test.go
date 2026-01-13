@@ -18,6 +18,7 @@ func TestWrapperErrorPaths(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sqlmock new: %v", err)
 	}
+	defer db.Close()
 	svc := NewPostgresDbServiceInstance(db)
 
 	core := NewCoreRepo(svc)
@@ -25,7 +26,11 @@ func TestWrapperErrorPaths(t *testing.T) {
 	dml := NewDMLRepo(svc)
 	perf := NewPerformanceRepo(svc)
 	rel := NewRelationshipRepo(svc)
-	composite := NewDatabaseRepo(svc).(*DatabaseRepoImpl)
+	compositeAny := NewDatabaseRepo(svc)
+	composite, ok := compositeAny.(*DatabaseRepoImpl)
+	if !ok {
+		t.Fatalf("unexpected repo type %T", compositeAny)
+	}
 
 	ctx := context.Background()
 	boom := errors.New("boom")

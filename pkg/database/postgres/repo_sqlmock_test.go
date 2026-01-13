@@ -157,6 +157,9 @@ func TestParseAndConversionHelpers(t *testing.T) {
 	if v := convertToPostgresArray([]float32{1.25}); v == nil {
 		t.Fatalf("expected passthrough (non-nil) for float32 slice")
 	}
+	if v := convertToPostgresArray([]float32{1.25, 2.5}); v == nil {
+		t.Fatalf("expected passthrough (non-nil) for []float32 slice")
+	}
 	mapsInput := []map[string]interface{}{{"k": "v"}}
 	if v := convertToPostgresArray(mapsInput); v == nil {
 		t.Fatalf("expected pq.Array conversion for map slice")
@@ -190,6 +193,12 @@ func TestParseAndConversionHelpers(t *testing.T) {
 	if v := convertToPostgresArray([]uint{}); v == nil {
 		t.Fatalf("expected non-nil passthrough for empty []uint slice")
 	}
+	if v := convertToPostgresArray([]interface{}{"a", 1}); v == nil {
+		t.Fatalf("expected pq.Array for []interface{} with elements")
+	}
+	if v := convertToPostgresArray([]map[string]interface{}(nil)); v != nil {
+		t.Fatalf("expected nil for nil map slice, got %v", v)
+	}
 	ifVal := convertToPostgresArray([]interface{}{"a", "b"})
 	valuer, ok := ifVal.(driver.Valuer)
 	if !ok {
@@ -208,12 +217,21 @@ func TestParseAndConversionHelpers(t *testing.T) {
 	if out, err := mapsToJSONStrings([]map[string]interface{}{}); err != nil || len(out) != 0 {
 		t.Fatalf("expected empty slice for empty input, got %v, err %v", out, err)
 	}
+	if out, err := validateAndQuoteColumnList([]string{}); err != nil || out != nil {
+		t.Fatalf("expected nil output for empty column list, got %v err %v", out, err)
+	}
 
 	if out := parseValue(123); out.(int) != 123 {
 		t.Fatalf("expected passthrough for non-bytes, got %v", out)
 	}
 	if out := parseValue([]byte("null")); out != nil {
 		t.Fatalf("expected nil for json null, got %v", out)
+	}
+	if v := parseValue([]byte("true")); v != true {
+		t.Fatalf("expected bool true from json literal, got %v", v)
+	}
+	if v := parseValue([]byte("notjson")); v != "notjson" {
+		t.Fatalf("expected raw string fallback, got %v", v)
 	}
 	intArrVal := parseValue([]byte("{1,2}"))
 	intArr, okInt := intArrVal.([]int64)
