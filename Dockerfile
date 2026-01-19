@@ -19,7 +19,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
 
 # Production stage
-FROM alpine:latest
+FROM alpine:3.20
 
 # Install runtime dependencies
 RUN apk --no-cache add ca-certificates tzdata
@@ -28,7 +28,7 @@ WORKDIR /root/
 
 # Copy the binary from builder stage
 COPY --from=builder /app/main .
-COPY --from=builder /app/config.yaml .
+COPY --from=builder /app/.env.example .env
 
 # Create non-root user
 RUN adduser -D -s /bin/sh postgrest

@@ -1,23 +1,33 @@
 package database
 
 import (
-	"fmt"
-	"godbgrest/pkg/config"
-	"godbgrest/pkg/database/interfaces"
-	"godbgrest/pkg/database/postgres"
+	"go-postgres-rest/pkg/config"
+	"go-postgres-rest/pkg/database/interfaces"
 )
 
-type Database struct{}
+// ============================================================================
+// DEPRECATED: Use DatabaseConnectorFactory instead
+// This is kept for backwards compatibility
+// ============================================================================
 
-func NewDB() *Database {
-	return &Database{}
+type Database struct {
+	factory *DatabaseConnectorFactory
 }
 
-func (f *Database) Connect(dbType string, cfg *config.DatabaseConfig) (interfaces.DB, error) {
-	switch dbType {
-	case "postgres":
-		return postgres.Connect(cfg)
-	default:
-		return nil, fmt.Errorf("unsupported database type: %s", dbType)
+func NewDB() *Database {
+	// Create factory with default connectors
+	factory := NewDatabaseConnectorFactory()
+	factory.RegisterConnector("postgres", NewPostgresConnectionFactory(nil, nil))
+	return &Database{factory: factory}
+}
+
+// Connect creates a database connection using the configured factory.
+// Kept for backwards compatibility; prefer DatabaseConnectorFactory directly.
+func (db *Database) Connect(dbType string, cfg *config.DatabaseConfig) (interfaces.DB, error) {
+	if db.factory == nil {
+		factory := NewDatabaseConnectorFactory()
+		factory.RegisterConnector("postgres", NewPostgresConnectionFactory(nil, nil))
+		db.factory = factory
 	}
+	return db.factory.CreateConnection(dbType, cfg)
 }

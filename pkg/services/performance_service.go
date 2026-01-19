@@ -2,11 +2,11 @@ package services
 
 import (
 	"fmt"
-	"godbgrest/pkg/database/interfaces"
-	"godbgrest/pkg/models"
+	"go-postgres-rest/pkg/database/interfaces"
+	"go-postgres-rest/pkg/models"
 	"strings"
 
-	servicesInterface "godbgrest/pkg/services/interfaces"
+	servicesInterface "go-postgres-rest/pkg/services/interfaces"
 )
 
 type PerformanceService struct {
@@ -140,7 +140,7 @@ func (s *PerformanceService) AnalyzeTablePerformance(tableName string) (map[stri
 		"column_count":    len(targetTable.Columns),
 		"primary_keys":    targetTable.PrimaryKeys,
 		"foreign_keys":    len(targetTable.ForeignKeys),
-		"recommendations": []string{},
+		"recommendations": make([]string, 0, 3), // Pre-allocate with estimated capacity (max 3 recommendations)
 	}
 
 	// Generate recommendations

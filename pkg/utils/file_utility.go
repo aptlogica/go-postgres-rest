@@ -1,11 +1,14 @@
 package utils
 
-import "os"
+import (
+	"fmt"
+	"os"
+)
 
 func CreateFile(path string) error {
 	file, err := os.Create(path)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create file %s: %w", path, err)
 	}
 	defer file.Close()
 	return nil

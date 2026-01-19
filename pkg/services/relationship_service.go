@@ -2,9 +2,9 @@ package services
 
 import (
 	"fmt"
-	"godbgrest/pkg/database/interfaces"
-	"godbgrest/pkg/models"
-	servicesInterface "godbgrest/pkg/services/interfaces"
+	"go-postgres-rest/pkg/database/interfaces"
+	"go-postgres-rest/pkg/models"
+	servicesInterface "go-postgres-rest/pkg/services/interfaces"
 )
 
 type RelationshipService struct {

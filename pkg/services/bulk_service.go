@@ -3,8 +3,8 @@ package services
 import (
 	"fmt"
 
-	"godbgrest/pkg/database/interfaces"
-	servicesInterface "godbgrest/pkg/services/interfaces"
+	"go-postgres-rest/pkg/database/interfaces"
+	servicesInterface "go-postgres-rest/pkg/services/interfaces"
 )
 
 type BulkService struct {
