@@ -1166,3 +1166,346 @@ func TestFilterHelpersEdgeCases(t *testing.T) {
 		t.Fatalf("expected two args, got %v", args)
 	}
 }
+
+func TestValidateCreateTableRequest(t *testing.T) {
+	svc := &PostgresDbService{}
+
+	// Valid request
+	req := models.CreateTableRequest{
+		Name:    "test_table",
+		Columns: []models.ColumnDefinition{{Name: "id", DataType: "SERIAL", NotNull: true}},
+	}
+	if err := svc.validateCreateTableRequest(req); err != nil {
+		t.Fatalf("expected valid request, got error: %v", err)
+	}
+
+	// Invalid: empty name
+	invalidReq := models.CreateTableRequest{
+		Name:    "",
+		Columns: []models.ColumnDefinition{{Name: "id", DataType: "SERIAL"}},
+	}
+	if err := svc.validateCreateTableRequest(invalidReq); err == nil {
+		t.Fatalf("expected error for empty table name")
+	}
+
+	// Empty columns is actually valid according to current validation
+	noColumnsReq := models.CreateTableRequest{
+		Name:    "test_table",
+		Columns: []models.ColumnDefinition{},
+	}
+	if err := svc.validateCreateTableRequest(noColumnsReq); err != nil {
+		t.Fatalf("expected no error for no columns, got: %v", err)
+	}
+}
+
+func TestBuildColumnDefinitions(t *testing.T) {
+	svc := &PostgresDbService{}
+
+	columns := []models.ColumnDefinition{
+		{Name: "id", DataType: "SERIAL", NotNull: true},
+		{Name: "name", DataType: "TEXT", DefaultValue: stringPtr("default")},
+		{Name: "age", DataType: "INT", NotNull: true, Unique: true, Check: stringPtr("age > 0")},
+	}
+
+	columnDefs := svc.buildColumnDefinitions(columns)
+
+	if len(columnDefs) != 3 {
+		t.Fatalf("expected 3 column definitions, got %d", len(columnDefs))
+	}
+
+	expected := []string{
+		"id SERIAL NOT NULL",
+		"name TEXT DEFAULT default",
+		"age INT NOT NULL UNIQUE CHECK (age > 0)",
+	}
+
+	for i, expectedDef := range expected {
+		if columnDefs[i] != expectedDef {
+			t.Fatalf("expected column def %q, got %q", expectedDef, columnDefs[i])
+		}
+	}
+}
+
+func TestBuildForeignKeyDefinitions(t *testing.T) {
+	svc := &PostgresDbService{}
+
+	foreignKeys := []models.ForeignKeyDef{
+		{
+			Columns:           []string{"user_id"},
+			ReferencedTable:   "users",
+			ReferencedColumns: []string{"id"},
+			OnDelete:          "CASCADE",
+		},
+		{
+			Name:              "fk_post_category",
+			Columns:           []string{"category_id"},
+			ReferencedTable:   "categories",
+			ReferencedColumns: []string{"id"},
+			OnUpdate:          "SET NULL",
+		},
+	}
+
+	fkDefs := svc.buildForeignKeyDefinitions(foreignKeys)
+
+	if len(fkDefs) != 2 {
+		t.Fatalf("expected 2 foreign key definitions, got %d", len(fkDefs))
+	}
+
+	expected := []string{
+		", FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE",
+		", FOREIGN KEY (category_id) REFERENCES categories (id) ON UPDATE SET NULL",
+	}
+
+	for i, expectedDef := range expected {
+		if fkDefs[i] != expectedDef {
+			t.Fatalf("expected fk def %q, got %q", expectedDef, fkDefs[i])
+		}
+	}
+}
+
+func stringPtr(s string) *string {
+	return &s
+}
+
+func TestParseValueHelperFunctions(t *testing.T) {
+	// Test tryParseJSON
+	jsonBytes := []byte(`{"key": "value"}`)
+	parsed, ok := tryParseJSON(jsonBytes)
+	if !ok || parsed == nil {
+		t.Fatalf("expected parsed JSON, got ok=%v parsed=%v", ok, parsed)
+	}
+	if m, ok := parsed.(map[string]interface{}); !ok || m["key"] != "value" {
+		t.Fatalf("expected parsed map with key=value, got %v", parsed)
+	}
+
+	// Test JSON null
+	nullBytes := []byte("null")
+	parsedNull, okNull := tryParseJSON(nullBytes)
+	if !okNull {
+		t.Fatalf("expected null to parse successfully")
+	}
+	if parsedNull != nil {
+		t.Fatalf("expected nil for JSON null, got %v", parsedNull)
+	}
+
+	invalidJSON := []byte(`invalid json`)
+	_, okInvalid := tryParseJSON(invalidJSON)
+	if okInvalid {
+		t.Fatalf("expected invalid JSON to fail parsing")
+	}
+
+	// Test tryParseArray
+	intArrayBytes := []byte("{1,2,3}")
+	parsedArray := tryParseArray(intArrayBytes)
+	if parsedArray == nil {
+		t.Fatalf("expected parsed int array, got nil")
+	}
+	if arr, ok := parsedArray.([]int64); !ok || len(arr) != 3 || arr[0] != 1 {
+		t.Fatalf("expected []int64{1,2,3}, got %v", parsedArray)
+	}
+
+	stringArrayBytes := []byte(`{"hello","world"}`)
+	parsedStrArray := tryParseArray(stringArrayBytes)
+	if parsedStrArray == nil {
+		t.Fatalf("expected parsed string array, got nil")
+	}
+	if arr, ok := parsedStrArray.([]interface{}); !ok || len(arr) != 2 {
+		t.Fatalf("expected []interface{} with 2 elements, got %v", parsedStrArray)
+	}
+
+	invalidArray := []byte("not an array")
+	if parsed := tryParseArray(invalidArray); parsed != nil {
+		t.Fatalf("expected nil for invalid array, got %v", parsed)
+	}
+
+	// Test parseStringArrayElements
+	strSlice := []string{`{"a":1}`, "plain", `{"b":2}`}
+	result := parseStringArrayElements(strSlice)
+	if len(result) != 3 {
+		t.Fatalf("expected 3 elements, got %d", len(result))
+	}
+	// Check first element (should be parsed JSON)
+	if m, ok := result[0].(map[string]interface{}); !ok {
+		t.Fatalf("expected first element to be parsed JSON map, got %T", result[0])
+	} else if val, ok := m["a"].(json.Number); !ok || val != "1" {
+		t.Fatalf("expected first element a=1, got %v", m["a"])
+	}
+	// Check second element (should be plain string)
+	if result[1] != "plain" {
+		t.Fatalf("expected second element to be plain string, got %v", result[1])
+	}
+	// Check third element (should be parsed JSON)
+	if m, ok := result[2].(map[string]interface{}); !ok {
+		t.Fatalf("expected third element to be parsed JSON map, got %T", result[2])
+	} else if val, ok := m["b"].(json.Number); !ok || val != "2" {
+		t.Fatalf("expected third element b=2, got %v", m["b"])
+	}
+
+	// Test tryParseJSONElement
+	validJSON := `{"test": true}`
+	parsedElement := tryParseJSONElement(validJSON)
+	if parsedElement == nil {
+		t.Fatalf("expected parsed JSON element, got nil")
+	}
+	if m, ok := parsedElement.(map[string]interface{}); !ok || m["test"] != true {
+		t.Fatalf("expected parsed map with test=true, got %v", parsedElement)
+	}
+
+	invalidJSONElement := "not json"
+	if parsed := tryParseJSONElement(invalidJSONElement); parsed != nil {
+		t.Fatalf("expected nil for invalid JSON element, got %v", parsed)
+	}
+}
+
+func TestBuildSelectClause(t *testing.T) {
+	svc := &PostgresDbService{}
+
+	// Test with no aggregates or select columns
+	clause, args, counter := svc.buildSelectClause(models.QueryParams{})
+	expected := "SELECT *"
+	if clause != expected || len(args) != 0 || counter != 1 {
+		t.Fatalf("expected %s, [], 1; got %s, %v, %d", expected, clause, args, counter)
+	}
+
+	// Test with select columns
+	params := models.QueryParams{Select: []string{"id", "name"}}
+	clause, args, counter = svc.buildSelectClause(params)
+	expected = "SELECT \"id\", \"name\""
+	if clause != expected || len(args) != 0 || counter != 1 {
+		t.Fatalf("expected %s, [], 1; got %s, %v, %d", expected, clause, args, counter)
+	}
+
+	// Test with aggregates
+	params = models.QueryParams{
+		Aggregates: []models.AggregateFunction{
+			{Function: "COUNT", Column: "id", Alias: "total"},
+		},
+	}
+	clause, args, counter = svc.buildSelectClause(params)
+	expected = "SELECT COUNT(\"id\") AS \"total\""
+	if clause != expected || len(args) != 0 || counter != 1 {
+		t.Fatalf("expected %s, [], 1; got %s, %v, %d", expected, clause, args, counter)
+	}
+}
+
+func TestBuildJoinClause(t *testing.T) {
+	svc := &PostgresDbService{}
+
+	// Test with no joins
+	clause := svc.buildJoinClause([]models.JoinClause{})
+	if clause != "" {
+		t.Fatalf("expected empty string, got %s", clause)
+	}
+
+	// Test with joins
+	joins := []models.JoinClause{
+		{Table: "users", Type: "LEFT", On: "orders.user_id = users.id", Alias: "u"},
+	}
+	clause = svc.buildJoinClause(joins)
+	expected := " LEFT JOIN users AS u ON orders.user_id = users.id"
+	if clause != expected {
+		t.Fatalf("expected %s, got %s", expected, clause)
+	}
+}
+
+func TestBuildWhereClause(t *testing.T) {
+	svc := &PostgresDbService{}
+
+	// Test with no conditions
+	clause, args, counter := svc.buildWhereClause(models.QueryParams{}, 1)
+	if clause != "" || len(args) != 0 || counter != 1 {
+		t.Fatalf("expected '', [], 1; got %s, %v, %d", clause, args, counter)
+	}
+
+	// Test with simple filters
+	params := models.QueryParams{
+		Filters: []models.QueryFilter{
+			{Column: "age", Operator: "gt", Value: 30},
+		},
+	}
+	clause, args, counter = svc.buildWhereClause(params, 1)
+	expected := " WHERE (\"age\" > $1)"
+	if clause != expected || len(args) != 1 || counter != 2 {
+		t.Fatalf("expected %s, [30], 2; got %s, %v, %d", expected, clause, args, counter)
+	}
+}
+
+func TestBuildGroupByClause(t *testing.T) {
+	svc := &PostgresDbService{}
+
+	// Test with no group by
+	clause := svc.buildGroupByClause([]string{})
+	if clause != "" {
+		t.Fatalf("expected empty string, got %s", clause)
+	}
+
+	// Test with group by columns
+	clause = svc.buildGroupByClause([]string{"category", "status"})
+	expected := " GROUP BY \"category\", \"status\""
+	if clause != expected {
+		t.Fatalf("expected %s, got %s", expected, clause)
+	}
+}
+
+func TestBuildHavingClause(t *testing.T) {
+	svc := &PostgresDbService{}
+
+	// Test with no having
+	clause, args, counter := svc.buildHavingClause([]models.QueryFilter{}, 1)
+	if clause != "" || len(args) != 0 || counter != 1 {
+		t.Fatalf("expected '', [], 1; got %s, %v, %d", clause, args, counter)
+	}
+
+	// Test with having conditions
+	having := []models.QueryFilter{
+		{Column: "total_count", Operator: "gt", Value: 5},
+	}
+	clause, args, counter = svc.buildHavingClause(having, 1)
+	expected := " HAVING \"total_count\" > $1"
+	if clause != expected || len(args) != 1 || counter != 2 {
+		t.Fatalf("expected %s, [5], 2; got %s, %v, %d", expected, clause, args, counter)
+	}
+}
+
+func TestBuildOrderByClause(t *testing.T) {
+	svc := &PostgresDbService{}
+
+	// Test with no order by
+	clause := svc.buildOrderByClause([]string{})
+	if clause != "" {
+		t.Fatalf("expected empty string, got %s", clause)
+	}
+
+	// Test with order by columns
+	clause = svc.buildOrderByClause([]string{"name ASC", "age DESC"})
+	expected := " ORDER BY \"name\" ASC, \"age\" DESC"
+	if clause != expected {
+		t.Fatalf("expected %s, got %s", expected, clause)
+	}
+}
+
+func TestBuildLimitOffsetClause(t *testing.T) {
+	svc := &PostgresDbService{}
+
+	// Test with no limit or offset
+	clause, args := svc.buildLimitOffsetClause(nil, nil, 1)
+	if clause != "" || len(args) != 0 {
+		t.Fatalf("expected '', []; got %s, %v", clause, args)
+	}
+
+	// Test with limit only
+	limit := 10
+	clause, args = svc.buildLimitOffsetClause(&limit, nil, 1)
+	expected := " LIMIT $1"
+	if clause != expected || len(args) != 1 {
+		t.Fatalf("expected %s, [10]; got %s, %v", expected, clause, args)
+	}
+
+	// Test with limit and offset
+	offset := 20
+	clause, args = svc.buildLimitOffsetClause(&limit, &offset, 1)
+	expected = " LIMIT $1 OFFSET $2"
+	if clause != expected || len(args) != 2 {
+		t.Fatalf("expected %s, [10, 20]; got %s, %v", expected, clause, args)
+	}
+}

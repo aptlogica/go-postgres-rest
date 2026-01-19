@@ -39,6 +39,18 @@ var (
 	validTableRegex  = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 )
 
+const (
+	notNullClause   = "NOT NULL"
+	uniqueClause    = "UNIQUE"
+	fkClause        = "FOREIGN KEY"
+	cascadeClause   = "CASCADE"
+	onDeleteKeyword = "ON DELETE"
+	onUpdateKeyword = "ON UPDATE"
+	defaultClause   = "DEFAULT"
+	checkClause     = "CHECK"
+	equalParamFmt   = "%s = $%d"
+)
+
 // ValidateTableName ensures table name is safe for SQL
 func ValidateTableName(name string) error {
 	name = strings.TrimSpace(name)
@@ -200,19 +212,19 @@ func (postgresDbService *PostgresDbService) AddField(collection string, req mode
 		collection, req.Column.Name, req.Column.DataType))
 
 	if req.Column.NotNull {
-		query.WriteString(" NOT NULL")
+		query.WriteString(" " + notNullClause)
 	}
 
 	if req.Column.Unique {
-		query.WriteString(" UNIQUE")
+		query.WriteString(" " + uniqueClause)
 	}
 
 	if req.Column.DefaultValue != nil {
-		query.WriteString(" DEFAULT " + *req.Column.DefaultValue)
+		query.WriteString(" " + defaultClause + " " + *req.Column.DefaultValue)
 	}
 
 	if req.Column.Check != nil {
-		query.WriteString(" CHECK (" + *req.Column.Check + ")")
+		query.WriteString(" " + checkClause + " (" + *req.Column.Check + ")")
 	}
 
 	_, err := postgresDbService.db.Exec(query.String())
@@ -268,7 +280,7 @@ func (postgresDbService *PostgresDbService) dropColumn(tableName string, req mod
 	query := fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", tableName, req.ColumnName)
 
 	if req.Cascade {
-		query += " CASCADE"
+		query += " " + cascadeClause
 	}
 
 	_, err := postgresDbService.db.Exec(query)
@@ -298,22 +310,22 @@ func (postgresDbService *PostgresDbService) modifyColumn(tableName string, req m
 	}
 	if req.SetNotNull != nil {
 		if *req.SetNotNull {
-			queries = append(queries, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s SET NOT NULL",
-				tableName, req.ColumnName))
+			queries = append(queries, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s SET %s",
+				tableName, req.ColumnName, notNullClause))
 		} else {
-			queries = append(queries, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s DROP NOT NULL",
-				tableName, req.ColumnName))
+			queries = append(queries, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s DROP %s",
+				tableName, req.ColumnName, notNullClause))
 		}
 	}
 
 	if req.SetDefault != nil {
-		queries = append(queries, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s SET DEFAULT %s",
-			tableName, req.ColumnName, *req.SetDefault))
+		queries = append(queries, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s SET %s %s",
+			tableName, req.ColumnName, defaultClause, *req.SetDefault))
 	}
 
 	if req.DropDefault {
-		queries = append(queries, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s DROP DEFAULT",
-			tableName, req.ColumnName))
+		queries = append(queries, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s DROP %s",
+			tableName, req.ColumnName, defaultClause))
 	}
 
 	for _, query := range queries {
@@ -383,83 +395,16 @@ func (postgresDbService *PostgresDbService) createIndex(tableName string, idx mo
 }
 
 func (postgresDbService *PostgresDbService) CreateCollection(req models.CreateTableRequest) error {
-	// Validate table name (may include schema)
-	if err := ValidateQualifiedTableName(req.Name); err != nil {
-		return fmt.Errorf("invalid table name: %w", err)
-	}
-
-	// Validate all column names
-	for _, col := range req.Columns {
-		if err := ValidateColumnName(col.Name); err != nil {
-			return fmt.Errorf("invalid column name: %w", err)
-		}
-	}
-
-	// Validate primary key column names
-	for _, pk := range req.PrimaryKey {
-		if err := ValidateColumnName(pk); err != nil {
-			return fmt.Errorf("invalid primary key column name: %w", err)
-		}
-	}
-
-	// Validate foreign key column names
-	for _, fk := range req.ForeignKeys {
-		for _, col := range fk.Columns {
-			if err := ValidateColumnName(col); err != nil {
-				return fmt.Errorf("invalid foreign key column name: %w", err)
-			}
-		}
-		for _, col := range fk.ReferencedColumns {
-			if err := ValidateColumnName(col); err != nil {
-				return fmt.Errorf("invalid referenced column name: %w", err)
-			}
-		}
-	}
-
-	// Validate index column names
-	for _, idx := range req.Indexes {
-		for _, col := range idx.Columns {
-			if err := ValidateColumnName(col); err != nil {
-				return fmt.Errorf("invalid index column name: %w", err)
-			}
-		}
+	// Validate request
+	if err := postgresDbService.validateCreateTableRequest(req); err != nil {
+		return err
 	}
 
 	var query strings.Builder
-
 	query.WriteString(fmt.Sprintf("CREATE TABLE %s (", req.Name))
 
 	// Add columns
-	// Pre-allocate columnDefs with known size to avoid repeated reallocations
-	columnDefs := make([]string, 0, len(req.Columns))
-	for _, col := range req.Columns {
-		var colSb strings.Builder
-		colSb.WriteString(col.Name)
-		colSb.WriteString(" ")
-		colSb.WriteString(col.DataType)
-
-		if col.NotNull {
-			colSb.WriteString(" NOT NULL")
-		}
-
-		if col.Unique {
-			colSb.WriteString(" UNIQUE")
-		}
-
-		if col.DefaultValue != nil {
-			colSb.WriteString(" DEFAULT ")
-			colSb.WriteString(*col.DefaultValue)
-		}
-
-		if col.Check != nil {
-			colSb.WriteString(" CHECK (")
-			colSb.WriteString(*col.Check)
-			colSb.WriteString(")")
-		}
-
-		columnDefs = append(columnDefs, colSb.String())
-	}
-
+	columnDefs := postgresDbService.buildColumnDefinitions(req.Columns)
 	query.WriteString(strings.Join(columnDefs, ", "))
 
 	// Add primary key
@@ -468,28 +413,8 @@ func (postgresDbService *PostgresDbService) CreateCollection(req models.CreateTa
 	}
 
 	// Add foreign keys
-	for _, fk := range req.ForeignKeys {
-		var fkSb strings.Builder
-		fkSb.WriteString(", FOREIGN KEY (")
-		fkSb.WriteString(strings.Join(fk.Columns, ", "))
-		fkSb.WriteString(") REFERENCES ")
-		fkSb.WriteString(fk.ReferencedTable)
-		fkSb.WriteString(" (")
-		fkSb.WriteString(strings.Join(fk.ReferencedColumns, ", "))
-		fkSb.WriteString(")")
-
-		if fk.OnDelete != "" {
-			fkSb.WriteString(" ON DELETE ")
-			fkSb.WriteString(fk.OnDelete)
-		}
-
-		if fk.OnUpdate != "" {
-			fkSb.WriteString(" ON UPDATE ")
-			fkSb.WriteString(fk.OnUpdate)
-		}
-
-		fkDef := fkSb.String()
-
+	fkDefs := postgresDbService.buildForeignKeyDefinitions(req.ForeignKeys)
+	for _, fkDef := range fkDefs {
 		query.WriteString(fkDef)
 	}
 
@@ -508,6 +433,154 @@ func (postgresDbService *PostgresDbService) CreateCollection(req models.CreateTa
 	}
 
 	return nil
+}
+
+// validateCreateTableRequest validates all components of a CreateTableRequest
+func (postgresDbService *PostgresDbService) validateCreateTableRequest(req models.CreateTableRequest) error {
+	// Validate table name
+	if err := postgresDbService.validateTableNameForCreation(req.Name); err != nil {
+		return err
+	}
+
+	// Validate columns
+	if err := postgresDbService.validateColumnsForCreation(req.Columns); err != nil {
+		return err
+	}
+
+	// Validate primary key
+	if err := postgresDbService.validatePrimaryKeyForCreation(req.PrimaryKey); err != nil {
+		return err
+	}
+
+	// Validate foreign keys
+	if err := postgresDbService.validateForeignKeysForCreation(req.ForeignKeys); err != nil {
+		return err
+	}
+
+	// Validate indexes
+	if err := postgresDbService.validateIndexesForCreation(req.Indexes); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateTableNameForCreation validates the table name for table creation
+func (postgresDbService *PostgresDbService) validateTableNameForCreation(tableName string) error {
+	if err := ValidateQualifiedTableName(tableName); err != nil {
+		return fmt.Errorf("invalid table name: %w", err)
+	}
+	return nil
+}
+
+// validateColumnsForCreation validates all column names for table creation
+func (postgresDbService *PostgresDbService) validateColumnsForCreation(columns []models.ColumnDefinition) error {
+	for _, col := range columns {
+		if err := ValidateColumnName(col.Name); err != nil {
+			return fmt.Errorf("invalid column name: %w", err)
+		}
+	}
+	return nil
+}
+
+// validatePrimaryKeyForCreation validates primary key column names for table creation
+func (postgresDbService *PostgresDbService) validatePrimaryKeyForCreation(primaryKey []string) error {
+	for _, pk := range primaryKey {
+		if err := ValidateColumnName(pk); err != nil {
+			return fmt.Errorf("invalid primary key column name: %w", err)
+		}
+	}
+	return nil
+}
+
+// validateForeignKeysForCreation validates foreign key column names for table creation
+func (postgresDbService *PostgresDbService) validateForeignKeysForCreation(foreignKeys []models.ForeignKeyDef) error {
+	for _, fk := range foreignKeys {
+		for _, col := range fk.Columns {
+			if err := ValidateColumnName(col); err != nil {
+				return fmt.Errorf("invalid foreign key column name: %w", err)
+			}
+		}
+		for _, col := range fk.ReferencedColumns {
+			if err := ValidateColumnName(col); err != nil {
+				return fmt.Errorf("invalid referenced column name: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+// validateIndexesForCreation validates index column names for table creation
+func (postgresDbService *PostgresDbService) validateIndexesForCreation(indexes []models.IndexDefinition) error {
+	for _, idx := range indexes {
+		for _, col := range idx.Columns {
+			if err := ValidateColumnName(col); err != nil {
+				return fmt.Errorf("invalid index column name: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+// buildColumnDefinitions builds SQL column definitions from ColumnDefinition slice
+func (postgresDbService *PostgresDbService) buildColumnDefinitions(columns []models.ColumnDefinition) []string {
+	columnDefs := make([]string, 0, len(columns))
+	for _, col := range columns {
+		var colSb strings.Builder
+		colSb.WriteString(col.Name)
+		colSb.WriteString(" ")
+		colSb.WriteString(col.DataType)
+
+		if col.NotNull {
+			colSb.WriteString(" " + notNullClause)
+		}
+
+		if col.Unique {
+			colSb.WriteString(" " + uniqueClause)
+		}
+
+		if col.DefaultValue != nil {
+			colSb.WriteString(" " + defaultClause + " ")
+			colSb.WriteString(*col.DefaultValue)
+		}
+
+		if col.Check != nil {
+			colSb.WriteString(" " + checkClause + " (")
+			colSb.WriteString(*col.Check)
+			colSb.WriteString(")")
+		}
+
+		columnDefs = append(columnDefs, colSb.String())
+	}
+	return columnDefs
+}
+
+// buildForeignKeyDefinitions builds SQL foreign key constraint definitions
+func (postgresDbService *PostgresDbService) buildForeignKeyDefinitions(foreignKeys []models.ForeignKeyDef) []string {
+	fkDefs := make([]string, 0, len(foreignKeys))
+	for _, fk := range foreignKeys {
+		var fkSb strings.Builder
+		fkSb.WriteString(", " + fkClause + " (")
+		fkSb.WriteString(strings.Join(fk.Columns, ", "))
+		fkSb.WriteString(") REFERENCES ")
+		fkSb.WriteString(fk.ReferencedTable)
+		fkSb.WriteString(" (")
+		fkSb.WriteString(strings.Join(fk.ReferencedColumns, ", "))
+		fkSb.WriteString(")")
+
+		if fk.OnDelete != "" {
+			fkSb.WriteString(" " + onDeleteKeyword + " ")
+			fkSb.WriteString(fk.OnDelete)
+		}
+
+		if fk.OnUpdate != "" {
+			fkSb.WriteString(" " + onUpdateKeyword + " ")
+			fkSb.WriteString(fk.OnUpdate)
+		}
+
+		fkDefs = append(fkDefs, fkSb.String())
+	}
+	return fkDefs
 }
 
 func (postgresDbService *PostgresDbService) Delete(collection string, id any) error {
@@ -618,7 +691,7 @@ func (postgresDbService *PostgresDbService) buildFilterCondition(filter models.Q
 	switch strings.ToLower(filter.Operator) {
 	case "eq", "=":
 		// Use pq.QuoteIdentifier for safe column name escaping
-		condition = fmt.Sprintf("%s = $%d", pq.QuoteIdentifier(filter.Column), argCounter)
+		condition = fmt.Sprintf(equalParamFmt, pq.QuoteIdentifier(filter.Column), argCounter)
 		args = append(args, filter.Value)
 		argCounter++
 	case "neq", "!=", "<>":
@@ -803,11 +876,67 @@ func (postgresDbService *PostgresDbService) BuildAdvancedQuery(tableName string,
 	var args []interface{}
 	argCounter := 1
 
-	// SELECT clause with aggregations
-	query.WriteString("SELECT ")
+	// Build SELECT clause
+	selectClause, newArgs, newArgCounter := postgresDbService.buildSelectClause(params)
+	query.WriteString(selectClause)
+	args = append(args, newArgs...)
+	argCounter = newArgCounter
+
+	// FROM clause
+	query.WriteString(fmt.Sprintf(" FROM %s", tableName))
+
+	// JOIN clauses
+	joinClause := postgresDbService.buildJoinClause(params.Joins)
+	if joinClause != "" {
+		query.WriteString(joinClause)
+	}
+
+	// WHERE clause
+	whereClause, newArgs, newArgCounter := postgresDbService.buildWhereClause(params, argCounter)
+	if whereClause != "" {
+		query.WriteString(whereClause)
+		args = append(args, newArgs...)
+		argCounter = newArgCounter
+	}
+
+	// GROUP BY clause
+	groupByClause := postgresDbService.buildGroupByClause(params.GroupBy)
+	if groupByClause != "" {
+		query.WriteString(groupByClause)
+	}
+
+	// HAVING clause
+	havingClause, newArgs, newArgCounter := postgresDbService.buildHavingClause(params.Having, argCounter)
+	if havingClause != "" {
+		query.WriteString(havingClause)
+		args = append(args, newArgs...)
+		argCounter = newArgCounter
+	}
+
+	// ORDER BY clause
+	orderByClause := postgresDbService.buildOrderByClause(params.OrderBy)
+	if orderByClause != "" {
+		query.WriteString(orderByClause)
+	}
+
+	// LIMIT and OFFSET clauses
+	limitOffsetClause, newArgs := postgresDbService.buildLimitOffsetClause(params.Limit, params.Offset, argCounter)
+	if limitOffsetClause != "" {
+		query.WriteString(limitOffsetClause)
+		args = append(args, newArgs...)
+	}
+
+	return query.String(), args
+}
+
+// buildSelectClause builds the SELECT clause with aggregations and column selection
+func (postgresDbService *PostgresDbService) buildSelectClause(params models.QueryParams) (string, []interface{}, int) {
+	var selectParts []string
+	argCounter := 1
+
 	if len(params.Aggregates) > 0 {
 		// Pre-allocate selectParts with exact size
-		selectParts := make([]string, 0, len(params.Aggregates)+len(params.Select))
+		selectParts = make([]string, 0, len(params.Aggregates)+len(params.Select))
 		for _, agg := range params.Aggregates {
 			// Validate aggregate column name for safety
 			if err := ValidateColumnName(agg.Column); err == nil {
@@ -836,39 +965,48 @@ func (postgresDbService *PostgresDbService) BuildAdvancedQuery(tableName string,
 				selectParts = append(selectParts, "*")
 			}
 		}
-		query.WriteString(strings.Join(selectParts, ", "))
 	} else if len(params.Select) > 0 {
 		// Validate and quote SELECT columns
 		quotedCols, err := validateAndQuoteColumnList(params.Select)
 		if err == nil {
-			query.WriteString(strings.Join(quotedCols, ", "))
+			selectParts = append(selectParts, quotedCols...)
 		} else {
 			// If validation fails, fall back to SELECT *
-			query.WriteString("*")
+			selectParts = append(selectParts, "*")
 		}
 	} else {
-		query.WriteString("*")
+		selectParts = append(selectParts, "*")
 	}
 
-	// FROM clause - tableName should already be validated by caller
-	query.WriteString(fmt.Sprintf(" FROM %s", tableName))
+	return "SELECT " + strings.Join(selectParts, ", "), nil, argCounter
+}
 
-	// JOIN clauses
-	for _, join := range params.Joins {
+// buildJoinClause builds the JOIN clauses
+func (postgresDbService *PostgresDbService) buildJoinClause(joins []models.JoinClause) string {
+	if len(joins) == 0 {
+		return ""
+	}
+
+	var joinClause strings.Builder
+	for _, join := range joins {
 		joinType := strings.ToUpper(join.Type)
 		if joinType == "" {
 			joinType = "INNER"
 		}
-		query.WriteString(fmt.Sprintf(" %s JOIN %s", joinType, join.Table))
+		joinClause.WriteString(fmt.Sprintf(" %s JOIN %s", joinType, join.Table))
 		if join.Alias != "" {
-			query.WriteString(" AS " + join.Alias)
+			joinClause.WriteString(" AS " + join.Alias)
 		}
-		query.WriteString(" ON " + join.On)
+		joinClause.WriteString(" ON " + join.On)
 	}
+	return joinClause.String()
+}
 
-	// WHERE clause with complex filters and full-text search
+// buildWhereClause builds the WHERE clause with complex filters, simple filters, range queries, and full-text search
+func (postgresDbService *PostgresDbService) buildWhereClause(params models.QueryParams, argCounter int) (string, []interface{}, int) {
 	// Pre-allocate whereConditions with estimated capacity (complex + simple filters + range + full-text = max 4)
 	whereConditions := make([]string, 0, 4)
+	var args []interface{}
 
 	// Handle complex filters
 	if params.Complex != nil {
@@ -916,53 +1054,78 @@ func (postgresDbService *PostgresDbService) BuildAdvancedQuery(tableName string,
 	}
 
 	if len(whereConditions) > 0 {
-		query.WriteString(" WHERE " + strings.Join(whereConditions, " AND "))
+		return " WHERE " + strings.Join(whereConditions, " AND "), args, argCounter
+	}
+	return "", args, argCounter
+}
+
+// buildGroupByClause builds the GROUP BY clause
+func (postgresDbService *PostgresDbService) buildGroupByClause(groupBy []string) string {
+	if len(groupBy) == 0 {
+		return ""
 	}
 
-	// GROUP BY clause - validate column names
-	if len(params.GroupBy) > 0 {
-		quotedGroupBy, err := validateAndQuoteColumnList(params.GroupBy)
-		if err == nil && len(quotedGroupBy) > 0 {
-			query.WriteString(" GROUP BY " + strings.Join(quotedGroupBy, ", "))
-		}
+	quotedGroupBy, err := validateAndQuoteColumnList(groupBy)
+	if err == nil && len(quotedGroupBy) > 0 {
+		return " GROUP BY " + strings.Join(quotedGroupBy, ", ")
+	}
+	return ""
+}
+
+// buildHavingClause builds the HAVING clause
+func (postgresDbService *PostgresDbService) buildHavingClause(having []models.QueryFilter, argCounter int) (string, []interface{}, int) {
+	if len(having) == 0 {
+		return "", nil, argCounter
 	}
 
-	// HAVING clause
-	if len(params.Having) > 0 {
-		var havingConditions []string
-		for _, filter := range params.Having {
-			condition, newArgs, newArgCounter := postgresDbService.buildFilterCondition(filter, argCounter)
-			havingConditions = append(havingConditions, condition)
-			args = append(args, newArgs...)
-			argCounter = newArgCounter
-		}
-		if len(havingConditions) > 0 {
-			query.WriteString(" HAVING " + strings.Join(havingConditions, " AND "))
-		}
+	var havingConditions []string
+	var args []interface{}
+
+	for _, filter := range having {
+		condition, newArgs, newArgCounter := postgresDbService.buildFilterCondition(filter, argCounter)
+		havingConditions = append(havingConditions, condition)
+		args = append(args, newArgs...)
+		argCounter = newArgCounter
 	}
 
-	// ORDER BY clause - validate column names and directions
-	if len(params.OrderBy) > 0 {
-		quotedOrderBy, err := validateAndQuoteOrderByList(params.OrderBy)
-		if err == nil && len(quotedOrderBy) > 0 {
-			query.WriteString(" ORDER BY " + strings.Join(quotedOrderBy, ", "))
-		}
+	if len(havingConditions) > 0 {
+		return " HAVING " + strings.Join(havingConditions, " AND "), args, argCounter
 	}
+	return "", args, argCounter
+}
+
+// buildOrderByClause builds the ORDER BY clause
+func (postgresDbService *PostgresDbService) buildOrderByClause(orderBy []string) string {
+	if len(orderBy) == 0 {
+		return ""
+	}
+
+	quotedOrderBy, err := validateAndQuoteOrderByList(orderBy)
+	if err == nil && len(quotedOrderBy) > 0 {
+		return " ORDER BY " + strings.Join(quotedOrderBy, ", ")
+	}
+	return ""
+}
+
+// buildLimitOffsetClause builds the LIMIT and OFFSET clauses
+func (postgresDbService *PostgresDbService) buildLimitOffsetClause(limit, offset *int, argCounter int) (string, []interface{}) {
+	var clause strings.Builder
+	var args []interface{}
 
 	// LIMIT clause
-	if params.Limit != nil {
-		query.WriteString(fmt.Sprintf(" LIMIT $%d", argCounter))
-		args = append(args, *params.Limit)
+	if limit != nil {
+		clause.WriteString(fmt.Sprintf(" LIMIT $%d", argCounter))
+		args = append(args, *limit)
 		argCounter++
 	}
 
 	// OFFSET clause
-	if params.Offset != nil {
-		query.WriteString(fmt.Sprintf(" OFFSET $%d", argCounter))
-		args = append(args, *params.Offset)
+	if offset != nil {
+		clause.WriteString(fmt.Sprintf(" OFFSET $%d", argCounter))
+		args = append(args, *offset)
 	}
 
-	return query.String(), args
+	return clause.String(), args
 }
 
 func (postgresDbService *PostgresDbService) ExecuteQuery(name string, params models.QueryParams) (any, error) {
@@ -1062,49 +1225,75 @@ func parseValue(v interface{}) interface{} {
 	b, ok := v.([]byte)
 	if !ok {
 		// Not a byte slice; return as-is
-		// Actual type: %T, expected: []byte
 		return v
 	}
 
-	// Try JSON
-	var data interface{}
-	if err := json.Unmarshal(b, &data); err == nil {
-		return data
+	// Try JSON first
+	if parsed, ok := tryParseJSON(b); ok {
+		return parsed
 	}
 
-	// Fallback: try other common decoders
+	// Fallback: try array parsing
+	if parsed := tryParseArray(b); parsed != nil {
+		return parsed
+	}
+
+	return string(b)
+}
+
+// tryParseJSON attempts to parse bytes as JSON, returns parsed value and success flag
+func tryParseJSON(b []byte) (interface{}, bool) {
+	var data interface{}
+	if err := json.Unmarshal(b, &data); err == nil {
+		return data, true
+	}
+	return nil, false
+}
+
+// tryParseArray attempts to parse bytes as various array types
+func tryParseArray(b []byte) interface{} {
 	arrDecoders := []interface{}{
 		&[]int64{}, &[]float64{}, &[]bool{}, &[]int{}, &[]string{}, &[]map[string]interface{}{}, &[]interface{}{},
 	}
+
 	for _, a := range arrDecoders {
 		if err := pq.Array(a).Scan(b); err == nil {
 			arr := reflect.ValueOf(a).Elem().Interface()
 
-			// Check if it's a slice of string
-			strSlice, ok := arr.([]string)
-			if !ok {
-				// Array scan succeeded but result type mismatch
-				// Expected []string, got %T
-				return arr
+			// Check if it's a slice of string and parse elements
+			if strSlice, ok := arr.([]string); ok {
+				return parseStringArrayElements(strSlice)
 			}
 
-			// Use decoder for efficient unmarshaling of multiple JSON strings
-			result := make([]interface{}, 0, len(strSlice))
-			for _, elem := range strSlice {
-				var obj interface{}
-				decoder := json.NewDecoder(bytes.NewReader([]byte(elem)))
-				decoder.UseNumber() // Preserve number types
-				if err := decoder.Decode(&obj); err == nil {
-					result = append(result, obj)
-				} else {
-					result = append(result, elem)
-				}
-			}
-			return result
+			return arr
 		}
 	}
 
-	return string(b)
+	return nil
+}
+
+// parseStringArrayElements parses each string element as JSON if possible
+func parseStringArrayElements(strSlice []string) []interface{} {
+	result := make([]interface{}, 0, len(strSlice))
+	for _, elem := range strSlice {
+		if parsed := tryParseJSONElement(elem); parsed != nil {
+			result = append(result, parsed)
+		} else {
+			result = append(result, elem)
+		}
+	}
+	return result
+}
+
+// tryParseJSONElement attempts to parse a string element as JSON
+func tryParseJSONElement(elem string) interface{} {
+	var obj interface{}
+	decoder := json.NewDecoder(bytes.NewReader([]byte(elem)))
+	decoder.UseNumber() // Preserve number types
+	if err := decoder.Decode(&obj); err == nil {
+		return obj
+	}
+	return nil
 }
 
 func (postgresDbService *PostgresDbService) Insert(collection string, data map[string]any) (any, error) {
@@ -1184,7 +1373,7 @@ func (postgresDbService *PostgresDbService) Update(collection string, id any, da
 	i := 1
 	for col, val := range data {
 		args = append(args, convertToPostgresArray(val))
-		setParts = append(setParts, fmt.Sprintf("%s = $%d", col, i))
+		setParts = append(setParts, fmt.Sprintf(equalParamFmt, col, i))
 		i++
 	}
 
@@ -1663,7 +1852,7 @@ func (postgresDbService *PostgresDbService) BulkUpdate(tableName string, updates
 
 		for col, val := range update {
 			if col != whereColumn {
-				setParts = append(setParts, fmt.Sprintf("%s = $%d", col, argCounter))
+				setParts = append(setParts, fmt.Sprintf(equalParamFmt, col, argCounter))
 				args = append(args, val)
 				argCounter++
 			}
@@ -1967,12 +2156,12 @@ func (r *PostgresDbService) CreateForeignKeyConstraint(relationship *models.Rela
 	query := fmt.Sprintf(`
         ALTER TABLE %s 
         ADD CONSTRAINT %s 
-        FOREIGN KEY (%s) 
+        %s (%s) 
         REFERENCES %s (%s) 
-        ON DELETE %s 
-        ON UPDATE %s
-    `, relationship.SourceTable, constraintName, relationship.SourceColumn,
-		relationship.TargetTable, relationship.TargetColumn, onDelete, onUpdate)
+        %s %s 
+        %s %s
+    `, relationship.SourceTable, constraintName, fkClause, relationship.SourceColumn,
+		relationship.TargetTable, relationship.TargetColumn, onDeleteKeyword, onDelete, onUpdateKeyword, onUpdate)
 
 	_, err = r.db.Exec(query)
 	if err != nil {
@@ -2005,8 +2194,8 @@ func (r *PostgresDbService) DropRelationshipConstraints(relationship *models.Rel
 
 func (r *PostgresDbService) CreateJoinTable(relationship *models.RelationshipDefinition, joinTable models.CreateJoinTableRequest) error {
 	columns := []string{
-		fmt.Sprintf("%s UUID NOT NULL", *relationship.SourceJoinColumn),
-		fmt.Sprintf("%s UUID NOT NULL", *relationship.TargetJoinColumn),
+		fmt.Sprintf("%s UUID %s", *relationship.SourceJoinColumn, notNullClause),
+		fmt.Sprintf("%s UUID %s", *relationship.TargetJoinColumn, notNullClause),
 	}
 
 	// Additional columns with full schema
@@ -2014,19 +2203,19 @@ func (r *PostgresDbService) CreateJoinTable(relationship *models.RelationshipDef
 		columnDef := fmt.Sprintf("%s %s", col.Name, col.DataType)
 
 		if col.NotNull {
-			columnDef += " NOT NULL"
+			columnDef += " " + notNullClause
 		}
 
 		if col.Unique {
-			columnDef += " UNIQUE"
+			columnDef += " " + uniqueClause
 		}
 
 		if col.DefaultValue != nil {
-			columnDef += fmt.Sprintf(" DEFAULT '%s'", *col.DefaultValue)
+			columnDef += fmt.Sprintf(" %s '%s'", defaultClause, *col.DefaultValue)
 		}
 
 		if col.Check != nil {
-			columnDef += fmt.Sprintf(" CHECK (%s)", *col.Check)
+			columnDef += fmt.Sprintf(" %s (%s)", checkClause, *col.Check)
 		}
 
 		columns = append(columns, columnDef)
@@ -2035,10 +2224,10 @@ func (r *PostgresDbService) CreateJoinTable(relationship *models.RelationshipDef
 	// Constraints
 	constraints := []string{
 		fmt.Sprintf("PRIMARY KEY (%s, %s)", *relationship.SourceJoinColumn, *relationship.TargetJoinColumn),
-		fmt.Sprintf("FOREIGN KEY (%s) REFERENCES %s(%s) ON DELETE %s ON UPDATE %s",
-			*relationship.SourceJoinColumn, relationship.SourceTable, relationship.SourceColumn, relationship.OnDelete, relationship.OnUpdate),
-		fmt.Sprintf("FOREIGN KEY (%s) REFERENCES %s(%s) ON DELETE %s ON UPDATE %s",
-			*relationship.TargetJoinColumn, relationship.TargetTable, relationship.TargetColumn, relationship.OnDelete, relationship.OnUpdate),
+		fmt.Sprintf("%s (%s) REFERENCES %s(%s) %s %s %s %s",
+			fkClause, *relationship.SourceJoinColumn, relationship.SourceTable, relationship.SourceColumn, onDeleteKeyword, relationship.OnDelete, onUpdateKeyword, relationship.OnUpdate),
+		fmt.Sprintf("%s (%s) REFERENCES %s(%s) %s %s %s %s",
+			fkClause, *relationship.TargetJoinColumn, relationship.TargetTable, relationship.TargetColumn, onDeleteKeyword, relationship.OnDelete, onUpdateKeyword, relationship.OnUpdate),
 	}
 
 	allDefs := append(columns, constraints...)
@@ -2052,7 +2241,7 @@ func (r *PostgresDbService) CreateJoinTable(relationship *models.RelationshipDef
 }
 
 func (r *PostgresDbService) DropJoinTable(tableName string) error {
-	query := fmt.Sprintf("DROP TABLE IF EXISTS %s CASCADE", tableName)
+	query := fmt.Sprintf("DROP TABLE IF EXISTS %s %s", tableName, cascadeClause)
 	_, err := r.db.Exec(query)
 	if err != nil {
 		return fmt.Errorf("failed to drop join table %s: %w", tableName, err)
