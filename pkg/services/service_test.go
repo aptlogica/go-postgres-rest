@@ -625,41 +625,41 @@ func TestTableServiceParseFiltersAndFunctions(t *testing.T) {
 		t.Fatalf("expected type error for select")
 	}
 
-	// parseJoinsFilter
+	// ParseJoinsFilter
 	params = models.QueryParams{}
 	joinInput := []interface{}{map[string]interface{}{"table": "profiles", "type": "left", "on": "users.id=profiles.user_id", "alias": "p"}}
-	if err := parseJoinsFilter(joinInput, &params); err != nil {
-		t.Fatalf("parseJoinsFilter valid input failed: %v", err)
+	if err := ParseJoinsFilter(joinInput, &params); err != nil {
+		t.Fatalf("ParseJoinsFilter valid input failed: %v", err)
 	}
 	if len(params.Joins) != 1 || params.Joins[0].Table != "profiles" || params.Joins[0].Alias != "p" {
 		t.Fatalf("unexpected joins parsed: %+v", params.Joins)
 	}
-	if err := parseJoinsFilter([]interface{}{map[string]interface{}{"table": 123}}, &params); err == nil {
+	if err := ParseJoinsFilter([]interface{}{map[string]interface{}{"table": 123}}, &params); err == nil {
 		t.Fatalf("expected join table type error")
 	}
-	if err := parseJoinsFilter("bad", &params); err == nil {
+	if err := ParseJoinsFilter("bad", &params); err == nil {
 		t.Fatalf("expected joins type error")
 	}
 
-	// parseFullTextFilter
+	// ParseFullTextFilter
 	params = models.QueryParams{}
 	ftsInput := map[string]interface{}{"query": "engineer", "columns": []interface{}{"name", "bio"}, "type": "websearch"}
-	if err := parseFullTextFilter(ftsInput, &params); err != nil {
-		t.Fatalf("parseFullTextFilter valid input failed: %v", err)
+	if err := ParseFullTextFilter(ftsInput, &params); err != nil {
+		t.Fatalf("ParseFullTextFilter valid input failed: %v", err)
 	}
 	if params.FullText == nil || params.FullText.Query != "engineer" || len(params.FullText.Columns) != 2 {
 		t.Fatalf("unexpected full_text parsed: %+v", params.FullText)
 	}
-	if err := parseFullTextFilter(map[string]interface{}{"query": 123}, &params); err == nil {
+	if err := ParseFullTextFilter(map[string]interface{}{"query": 123}, &params); err == nil {
 		t.Fatalf("expected full_text query type error")
 	}
-	if err := parseFullTextFilter(map[string]interface{}{"columns": "bad"}, &params); err == nil {
+	if err := ParseFullTextFilter(map[string]interface{}{"columns": "bad"}, &params); err == nil {
 		t.Fatalf("expected full_text columns type error")
 	}
-	if err := parseFullTextFilter(map[string]interface{}{"columns": []interface{}{123}}, &params); err == nil {
+	if err := ParseFullTextFilter(map[string]interface{}{"columns": []interface{}{123}}, &params); err == nil {
 		t.Fatalf("expected full_text column element type error")
 	}
-	if err := parseFullTextFilter("bad", &params); err == nil {
+	if err := ParseFullTextFilter("bad", &params); err == nil {
 		t.Fatalf("expected full_text type error")
 	}
 
@@ -811,49 +811,49 @@ func TestValidateAlterTableRequest(t *testing.T) {
 			Action: "add_column",
 			Data:   models.AddColumnRequest{Column: models.ColumnDefinition{Name: "age", DataType: "INT"}},
 		}
-		if err := svc.validateAlterTableRequest(req); err != nil {
+		if err := svc.ValidateAlterTableRequest(req); err != nil {
 			t.Fatalf("expected nil error, got %v", err)
 		}
 	})
 
 	t.Run("drop column requires name", func(t *testing.T) {
 		req := models.AlterTableRequest{Action: "drop_column", Data: models.DropColumnRequest{}}
-		if err := svc.validateAlterTableRequest(req); err == nil {
+		if err := svc.ValidateAlterTableRequest(req); err == nil {
 			t.Fatalf("expected error for missing column name")
 		}
 	})
 
 	t.Run("modify column missing name", func(t *testing.T) {
 		req := models.AlterTableRequest{Action: "modify_column", Data: models.ModifyColumnRequest{}}
-		if err := svc.validateAlterTableRequest(req); err == nil {
+		if err := svc.ValidateAlterTableRequest(req); err == nil {
 			t.Fatalf("expected error for missing column name")
 		}
 	})
 
 	t.Run("rename column happy path", func(t *testing.T) {
 		req := models.AlterTableRequest{Action: "rename_column", Data: models.RenameColumnRequest{OldName: "old", NewName: "new"}}
-		if err := svc.validateAlterTableRequest(req); err != nil {
+		if err := svc.ValidateAlterTableRequest(req); err != nil {
 			t.Fatalf("expected nil error, got %v", err)
 		}
 	})
 
 	t.Run("rename column requires both names", func(t *testing.T) {
 		req := models.AlterTableRequest{Action: "rename_column", Data: models.RenameColumnRequest{OldName: ""}}
-		if err := svc.validateAlterTableRequest(req); err == nil {
+		if err := svc.ValidateAlterTableRequest(req); err == nil {
 			t.Fatalf("expected error for missing names")
 		}
 	})
 
 	t.Run("unsupported action", func(t *testing.T) {
 		req := models.AlterTableRequest{Action: "noop", Data: nil}
-		if err := svc.validateAlterTableRequest(req); err == nil {
+		if err := svc.ValidateAlterTableRequest(req); err == nil {
 			t.Fatalf("expected unsupported action error")
 		}
 	})
 
 	t.Run("invalid data type for action", func(t *testing.T) {
 		req := models.AlterTableRequest{Action: "add_column", Data: "not a struct"}
-		if err := svc.validateAlterTableRequest(req); err == nil {
+		if err := svc.ValidateAlterTableRequest(req); err == nil {
 			t.Fatalf("expected type assertion error")
 		}
 	})

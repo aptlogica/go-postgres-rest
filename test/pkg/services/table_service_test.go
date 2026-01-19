@@ -298,3 +298,297 @@ func TestTableServiceBuildComplexQuery(t *testing.T) {
 		t.Fatalf("expected type validation error")
 	}
 }
+
+func TestParseFullTextFilter(t *testing.T) {
+	tests := []struct {
+		name        string
+		value       interface{}
+		expectedErr string
+		expectedFTS *models.FullTextSearch
+	}{
+		{
+			name: "valid full text search",
+			value: map[string]interface{}{
+				"query":   "test query",
+				"columns": []interface{}{"col1", "col2"},
+				"type":    "simple",
+			},
+			expectedErr: "",
+			expectedFTS: &models.FullTextSearch{
+				Query:   "test query",
+				Columns: []string{"col1", "col2"},
+				Type:    "simple",
+			},
+		},
+		{
+			name: "valid with missing optional fields",
+			value: map[string]interface{}{
+				"query": "test query",
+			},
+			expectedErr: "",
+			expectedFTS: &models.FullTextSearch{
+				Query:   "test query",
+				Columns: nil,
+				Type:    "",
+			},
+		},
+		{
+			name:        "nil value",
+			value:       nil,
+			expectedErr: "",
+			expectedFTS: nil,
+		},
+		{
+			name:        "invalid type",
+			value:       "invalid",
+			expectedErr: "invalid type for 'full_text' filter: got string, expected map[string]interface{}",
+			expectedFTS: nil,
+		},
+		{
+			name: "invalid query type",
+			value: map[string]interface{}{
+				"query": 123,
+			},
+			expectedErr: "invalid type for full_text 'query' field: got int, expected string",
+			expectedFTS: nil,
+		},
+		{
+			name: "invalid columns type",
+			value: map[string]interface{}{
+				"query":   "test",
+				"columns": "invalid",
+			},
+			expectedErr: "invalid type for full_text 'columns' field: got string, expected []interface{}",
+			expectedFTS: nil,
+		},
+		{
+			name: "invalid column in array",
+			value: map[string]interface{}{
+				"query":   "test",
+				"columns": []interface{}{"col1", 123},
+			},
+			expectedErr: "invalid column type in 'columns' array: got int, expected string",
+			expectedFTS: nil,
+		},
+		{
+			name: "invalid type field",
+			value: map[string]interface{}{
+				"query": "test",
+				"type":  123,
+			},
+			expectedErr: "invalid type for full_text 'type' field: got int, expected string",
+			expectedFTS: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			params := &models.QueryParams{}
+			err := realservices.ParseFullTextFilter(tt.value, params)
+
+			if tt.expectedErr != "" {
+				if err == nil {
+					t.Fatalf("expected error: %s, got nil", tt.expectedErr)
+				}
+				if err.Error() != tt.expectedErr {
+					t.Fatalf("expected error: %s, got: %s", tt.expectedErr, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if tt.expectedFTS == nil {
+					if params.FullText != nil {
+						t.Fatalf("expected nil FullText, got: %#v", params.FullText)
+					}
+				} else {
+					if params.FullText == nil {
+						t.Fatalf("expected FullText, got nil")
+					}
+					if params.FullText.Query != tt.expectedFTS.Query ||
+						!reflect.DeepEqual(params.FullText.Columns, tt.expectedFTS.Columns) ||
+						params.FullText.Type != tt.expectedFTS.Type {
+						t.Fatalf("expected %#v, got %#v", tt.expectedFTS, params.FullText)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestParseJoinsFilter(t *testing.T) {
+	tests := []struct {
+		name          string
+		value         interface{}
+		expectedErr   string
+		expectedJoins []models.JoinClause
+	}{
+		{
+			name: "valid joins",
+			value: []interface{}{
+				map[string]interface{}{
+					"table": "users",
+					"type":  "INNER",
+					"on":    "u.id = p.user_id",
+					"alias": "u",
+				},
+				map[string]interface{}{
+					"table": "posts",
+					"type":  "LEFT",
+					"on":    "p.id = c.post_id",
+				},
+			},
+			expectedErr: "",
+			expectedJoins: []models.JoinClause{
+				{Table: "users", Type: "INNER", On: "u.id = p.user_id", Alias: "u"},
+				{Table: "posts", Type: "LEFT", On: "p.id = c.post_id"},
+			},
+		},
+		{
+			name:          "nil value",
+			value:         nil,
+			expectedErr:   "",
+			expectedJoins: nil,
+		},
+		{
+			name:          "invalid type",
+			value:         "invalid",
+			expectedErr:   "invalid type for 'joins' filter: got string, expected []interface{}",
+			expectedJoins: nil,
+		},
+		{
+			name:          "invalid join item type",
+			value:         []interface{}{"invalid"},
+			expectedErr:   "invalid join item type: got string, expected map[string]interface{}",
+			expectedJoins: nil,
+		},
+		{
+			name: "invalid table type",
+			value: []interface{}{
+				map[string]interface{}{"table": 123},
+			},
+			expectedErr:   "invalid type for join 'table' field: got int, expected string",
+			expectedJoins: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			params := &models.QueryParams{}
+			err := realservices.ParseJoinsFilter(tt.value, params)
+
+			if tt.expectedErr != "" {
+				if err == nil {
+					t.Fatalf("expected error: %s, got nil", tt.expectedErr)
+				}
+				if err.Error() != tt.expectedErr {
+					t.Fatalf("expected error: %s, got: %s", tt.expectedErr, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if len(tt.expectedJoins) == 0 && len(params.Joins) != 0 {
+					t.Fatalf("expected no joins, got: %#v", params.Joins)
+				}
+				if len(tt.expectedJoins) != len(params.Joins) {
+					t.Fatalf("expected %d joins, got %d", len(tt.expectedJoins), len(params.Joins))
+				}
+				for i, expected := range tt.expectedJoins {
+					actual := params.Joins[i]
+					if actual.Table != expected.Table || actual.Type != expected.Type ||
+						actual.On != expected.On || actual.Alias != expected.Alias {
+						t.Fatalf("expected join %d: %#v, got: %#v", i, expected, actual)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestParseAggregatesFilter(t *testing.T) {
+	tests := []struct {
+		name         string
+		value        interface{}
+		expectedErr  string
+		expectedAggs []models.AggregateFunction
+	}{
+		{
+			name: "valid aggregates",
+			value: []interface{}{
+				map[string]interface{}{
+					"function": "COUNT",
+					"column":   "*",
+					"alias":    "total",
+				},
+				map[string]interface{}{
+					"function": "AVG",
+					"column":   "price",
+				},
+			},
+			expectedErr: "",
+			expectedAggs: []models.AggregateFunction{
+				{Function: "COUNT", Column: "*", Alias: "total"},
+				{Function: "AVG", Column: "price"},
+			},
+		},
+		{
+			name:         "nil value",
+			value:        nil,
+			expectedErr:  "",
+			expectedAggs: nil,
+		},
+		{
+			name:         "invalid type",
+			value:        "invalid",
+			expectedErr:  "invalid type for 'aggregates' filter: got string, expected []interface{}",
+			expectedAggs: nil,
+		},
+		{
+			name:         "invalid aggregate item type",
+			value:        []interface{}{"invalid"},
+			expectedErr:  "invalid aggregate item type: got string, expected map[string]interface{}",
+			expectedAggs: nil,
+		},
+		{
+			name: "invalid function type",
+			value: []interface{}{
+				map[string]interface{}{"function": 123},
+			},
+			expectedErr:  "invalid type for aggregate 'function' field: got int, expected string",
+			expectedAggs: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			params := &models.QueryParams{}
+			err := realservices.ParseAggregatesFilter(tt.value, params)
+
+			if tt.expectedErr != "" {
+				if err == nil {
+					t.Fatalf("expected error: %s, got nil", tt.expectedErr)
+				}
+				if err.Error() != tt.expectedErr {
+					t.Fatalf("expected error: %s, got: %s", tt.expectedErr, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if len(tt.expectedAggs) == 0 && len(params.Aggregates) != 0 {
+					t.Fatalf("expected no aggregates, got: %#v", params.Aggregates)
+				}
+				if len(tt.expectedAggs) != len(params.Aggregates) {
+					t.Fatalf("expected %d aggregates, got %d", len(tt.expectedAggs), len(params.Aggregates))
+				}
+				for i, expected := range tt.expectedAggs {
+					actual := params.Aggregates[i]
+					if actual.Function != expected.Function || actual.Column != expected.Column || actual.Alias != expected.Alias {
+						t.Fatalf("expected aggregate %d: %#v, got: %#v", i, expected, actual)
+					}
+				}
+			}
+		})
+	}
+}
