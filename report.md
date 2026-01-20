@@ -31,9 +31,22 @@ Updated on 2026-01-19 after refactoring multiple functions to reduce cognitive c
 ## Recent Additions
 - Refactored `ParseFullTextFilter`, `ParseJoinsFilter`, and `ParseAggregatesFilter` in `pkg/services/table_service.go` to reduce cognitive complexity by extracting helper functions for parsing individual fields.
 - Refactored `ValidateCreateTableRequest` and `ValidateAlterTableRequest` to reduce cognitive complexity by extracting validation logic into separate functions.
+- Refactored `CreateIndexes` in `pkg/services/performance_service.go` to reduce cognitive complexity by extracting helper functions (`findTargetTable`, `createForeignKeyIndexes`, `createCommonFilterIndexes`).
 - Added comprehensive unit tests for all refactored functions covering all validation paths and edge cases.
 - Increased `pkg/services` coverage from 83.2% to 93.3% through improved test coverage and function refactoring.
 - All refactored functions now have 100% test coverage for their validation logic.
+- Fixed duplicated string literals code smells by introducing constants for error messages and SQL queries:
+  - `invalidTableNameErrFmt`: "invalid table name: %w" (7 occurrences)
+  - `invalidColumnNameErrFmt`: "invalid column name: %w" (5 occurrences)  
+  - `failedToGetColumnsErrFmt`: "failed to get columns: %w" (8 occurrences)
+  - `failedToScanRowErrFmt`: "failed to scan row: %w" (7 occurrences)
+  - `dropConstraintQueryFmt`: "ALTER TABLE %s DROP CONSTRAINT IF EXISTS %s" (3 occurrences)
+  - `selectKeyword`: "SELECT " (1 occurrence in buildSelectClause)
+- Refactored `ValidateQualifiedTableName` in `pkg/database/postgres/repo.go` to reduce cognitive complexity from 16 to below 15 by extracting helper functions:
+  - `splitQualifiedName`: Handles quoted identifier parsing logic
+  - `validateQualifiedNameParts`: Validates the structure of split parts
+  - `validateSchemaTable`: Validates schema and table components
+- Added comprehensive unit tests for `ValidateQualifiedTableName` and helper functions covering quoted identifier edge cases, unmatched quotes, and error message validation.
 
 ## Remaining Gaps / Next Steps
 - Raise `parseValue`/`convertToPostgresArray` coverage by exercising remaining decoder fallbacks and interface slice branches.
