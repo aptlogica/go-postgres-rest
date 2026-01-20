@@ -114,32 +114,17 @@ func IsEmptyLegacy(value interface{}) bool {
 
 // ContainsString checks if a string slice contains an element - O(n) no reflection
 func ContainsString(slice []string, element string) bool {
-	for _, v := range slice {
-		if v == element {
-			return true
-		}
-	}
-	return false
+	return Contains(slice, element)
 }
 
 // ContainsInt checks if an int slice contains an element - O(n) no reflection
 func ContainsInt(slice []int, element int) bool {
-	for _, v := range slice {
-		if v == element {
-			return true
-		}
-	}
-	return false
+	return Contains(slice, element)
 }
 
 // ContainsInt64 checks if an int64 slice contains an element - O(n) no reflection
 func ContainsInt64(slice []int64, element int64) bool {
-	for _, v := range slice {
-		if v == element {
-			return true
-		}
-	}
-	return false
+	return Contains(slice, element)
 }
 
 // Contains generic variant - NO REFLECTION for comparable types
@@ -176,40 +161,12 @@ func ContainsLegacy(slice interface{}, element interface{}) bool {
 
 // RemoveDuplicatesString removes duplicate strings from a slice - NO REFLECTION
 func RemoveDuplicatesString(slice []string) []string {
-	if len(slice) == 0 {
-		return slice
-	}
-
-	seen := make(map[string]bool)
-	result := make([]string, 0, len(slice))
-
-	for _, v := range slice {
-		if !seen[v] {
-			seen[v] = true
-			result = append(result, v)
-		}
-	}
-
-	return result
+	return RemoveDuplicates(slice)
 }
 
 // RemoveDuplicatesInt removes duplicate ints from a slice - NO REFLECTION
 func RemoveDuplicatesInt(slice []int) []int {
-	if len(slice) == 0 {
-		return slice
-	}
-
-	seen := make(map[int]bool)
-	result := make([]int, 0, len(slice))
-
-	for _, v := range slice {
-		if !seen[v] {
-			seen[v] = true
-			result = append(result, v)
-		}
-	}
-
-	return result
+	return RemoveDuplicates(slice)
 }
 
 // RemoveDuplicates generic variant - NO REFLECTION for comparable types
@@ -252,8 +209,6 @@ func RemoveDuplicatesLegacy(slice interface{}) interface{} {
 
 	return result.Interface()
 }
-
-
 
 // TruncateString truncates a string to a specified length
 func TruncateString(str string, length int) string {
@@ -311,12 +266,15 @@ func SliceToStringInts(slice []int) string {
 		return ""
 	}
 
-	// Pre-allocate with known size to avoid repeated reallocations
-	parts := make([]string, len(slice))
+	// Use strings.Builder for efficient string concatenation
+	var sb strings.Builder
 	for i, v := range slice {
-		parts[i] = fmt.Sprintf("%d", v)
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(fmt.Sprintf("%d", v))
 	}
-	return strings.Join(parts, ", ")
+	return sb.String()
 }
 
 // SliceToString converts a slice of any type to a comma-separated string
@@ -399,23 +357,17 @@ func MapValues(m interface{}) []interface{} {
 
 // ReverseStrings reverses a string slice in place - NO REFLECTION
 func ReverseStrings(slice []string) {
-	for i, j := 0, len(slice)-1; i < j; i, j = i+1, j-1 {
-		slice[i], slice[j] = slice[j], slice[i]
-	}
+	Reverse(slice)
 }
 
 // ReverseInts reverses an int slice in place - NO REFLECTION
 func ReverseInts(slice []int) {
-	for i, j := 0, len(slice)-1; i < j; i, j = i+1, j-1 {
-		slice[i], slice[j] = slice[j], slice[i]
-	}
+	Reverse(slice)
 }
 
 // ReverseInt64s reverses an int64 slice in place - NO REFLECTION
 func ReverseInt64s(slice []int64) {
-	for i, j := 0, len(slice)-1; i < j; i, j = i+1, j-1 {
-		slice[i], slice[j] = slice[j], slice[i]
-	}
+	Reverse(slice)
 }
 
 // Reverse generic variant - NO REFLECTION for types with comparable swap
@@ -440,8 +392,6 @@ func ReverseLegacy(slice interface{}) {
 		vj.Set(reflect.ValueOf(temp))
 	}
 }
-
-
 
 // TimeAgo returns a human-readable time difference
 func TimeAgo(t time.Time) string {
