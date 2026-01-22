@@ -98,8 +98,18 @@ func TestContainsHelpers(t *testing.T) {
 	if !utils.Contains([]byte{1, 2}, 2) || utils.Contains([]byte{1}, 2) {
 		t.Fatalf("Contains generic failed")
 	}
+	// Edge cases
+	if utils.ContainsString([]string{}, "a") {
+		t.Fatalf("ContainsString empty slice should return false")
+	}
+	if utils.ContainsInt([]int{}, 1) {
+		t.Fatalf("ContainsInt empty slice should return false")
+	}
 	if !utils.ContainsLegacy([]int{1, 2}, 2) || utils.ContainsLegacy([]int{1}, 2) {
 		t.Fatalf("ContainsLegacy failed")
+	}
+	if utils.ContainsLegacy([]int{}, 1) {
+		t.Fatalf("ContainsLegacy empty slice should return false")
 	}
 }
 
@@ -249,6 +259,36 @@ func TestLegacyHelpersEdgeCases(t *testing.T) {
 	if !utils.IsEmptyLegacy([]int{}) || utils.IsEmptyLegacy([]int{1}) {
 		t.Fatalf("IsEmptyLegacy slice handling failed")
 	}
+	if !utils.IsEmptyLegacy("") || utils.IsEmptyLegacy("a") {
+		t.Fatalf("IsEmptyLegacy string handling failed")
+	}
+	if !utils.IsEmptyLegacy(map[string]int{}) || utils.IsEmptyLegacy(map[string]int{"a": 1}) {
+		t.Fatalf("IsEmptyLegacy map handling failed")
+	}
+	if !utils.IsEmptyLegacy([0]int{}) || utils.IsEmptyLegacy([1]int{1}) {
+		t.Fatalf("IsEmptyLegacy array handling failed")
+	}
+	ch := make(chan int, 1)
+	if !utils.IsEmptyLegacy(ch) {
+		t.Fatalf("IsEmptyLegacy empty chan should be empty")
+	}
+	ch <- 1
+	if utils.IsEmptyLegacy(ch) {
+		t.Fatalf("IsEmptyLegacy non-empty chan should be non-empty")
+	}
+	<-ch
+	if !utils.IsEmptyLegacy(int(0)) || utils.IsEmptyLegacy(int(1)) {
+		t.Fatalf("IsEmptyLegacy int handling failed")
+	}
+	if !utils.IsEmptyLegacy(uint(0)) || utils.IsEmptyLegacy(uint(1)) {
+		t.Fatalf("IsEmptyLegacy uint handling failed")
+	}
+	if !utils.IsEmptyLegacy(float32(0)) || utils.IsEmptyLegacy(float32(1)) {
+		t.Fatalf("IsEmptyLegacy float32 handling failed")
+	}
+	if !utils.IsEmptyLegacy(float64(0)) || utils.IsEmptyLegacy(float64(1)) {
+		t.Fatalf("IsEmptyLegacy float64 handling failed")
+	}
 	var ptr *int
 	if !utils.IsEmptyLegacy(ptr) {
 		t.Fatalf("IsEmptyLegacy nil ptr should be empty")
@@ -257,6 +297,18 @@ func TestLegacyHelpersEdgeCases(t *testing.T) {
 	ptr = &val
 	if utils.IsEmptyLegacy(ptr) {
 		t.Fatalf("IsEmptyLegacy non-nil ptr should be non-empty")
+	}
+	var iface interface{}
+	if !utils.IsEmptyLegacy(iface) {
+		t.Fatalf("IsEmptyLegacy nil interface should be empty")
+	}
+	iface = 1
+	if utils.IsEmptyLegacy(iface) {
+		t.Fatalf("IsEmptyLegacy non-nil non-zero interface should be non-empty")
+	}
+	// Unsupported type should return false
+	if utils.IsEmptyLegacy(struct{}{}) {
+		t.Fatalf("IsEmptyLegacy unsupported type should return false")
 	}
 
 	// ContainsLegacy non-slice returns false
@@ -272,5 +324,57 @@ func TestLegacyHelpersEdgeCases(t *testing.T) {
 	// MapKeys/MapValues non-map inputs return nil
 	if utils.MapKeys(123) != nil || utils.MapValues("notmap") != nil {
 		t.Fatalf("MapKeys/MapValues should return nil for non-map inputs")
+	}
+}
+
+// Benchmarks for performance-critical functions
+func BenchmarkContainsString(b *testing.B) {
+	slice := []string{"a", "b", "c", "d", "e"}
+	for i := 0; i < b.N; i++ {
+		utils.ContainsString(slice, "c")
+	}
+}
+
+func BenchmarkContainsInt(b *testing.B) {
+	slice := []int{1, 2, 3, 4, 5}
+	for i := 0; i < b.N; i++ {
+		utils.ContainsInt(slice, 3)
+	}
+}
+
+func BenchmarkRemoveDuplicatesString(b *testing.B) {
+	slice := []string{"a", "b", "a", "c", "b"}
+	for i := 0; i < b.N; i++ {
+		utils.RemoveDuplicatesString(slice)
+	}
+}
+
+func BenchmarkRemoveDuplicatesInt(b *testing.B) {
+	slice := []int{1, 2, 1, 3, 2}
+	for i := 0; i < b.N; i++ {
+		utils.RemoveDuplicatesInt(slice)
+	}
+}
+
+func BenchmarkReverseStrings(b *testing.B) {
+	slice := []string{"a", "b", "c", "d", "e"}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		utils.ReverseStrings(slice)
+		utils.ReverseStrings(slice) // reverse back
+	}
+}
+
+func BenchmarkSliceToStringStrings(b *testing.B) {
+	slice := []string{"a", "b", "c", "d", "e"}
+	for i := 0; i < b.N; i++ {
+		utils.SliceToStringStrings(slice)
+	}
+}
+
+func BenchmarkSliceToStringInts(b *testing.B) {
+	slice := []int{1, 2, 3, 4, 5}
+	for i := 0; i < b.N; i++ {
+		utils.SliceToStringInts(slice)
 	}
 }

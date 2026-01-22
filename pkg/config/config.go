@@ -19,6 +19,7 @@ type DatabaseConfig struct {
 	Username     string
 	Password     string
 	DatabaseName string
+	URL          string // optional full database URL
 
 	// ─── SQL (GORM) Specific ─────────────────
 	Driver          string // postgres | mysql | sqlite
@@ -65,6 +66,7 @@ func Load() (*Config, error) {
 			Username:        os.Getenv("DATABASE_USER"),
 			Password:        os.Getenv("DATABASE_PASSWORD"),
 			DatabaseName:    os.Getenv("DATABASE_NAME"),
+			URL:             os.Getenv("DATABASE_URL"),
 			Driver:          "postgres",
 			SSLMode:         os.Getenv("DATABASE_SSL_MODE"),
 			MaxOpenConns:    parseInt(os.Getenv("DATABASE_MAX_OPEN_CONNS"), 25),

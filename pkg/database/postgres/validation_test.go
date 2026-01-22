@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 )
 
@@ -20,15 +21,31 @@ func TestValidateTableName(t *testing.T) {
 		{name: "valid_with_numbers", input: "user_table_2024", wantError: false},
 		{name: "valid_max_length", input: "a" + "bcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", wantError: false}, // 63 chars
 
-		// Invalid names
-		{name: "empty_string", input: "", wantError: true},
-		{name: "too_long", input: "a" + string(make([]byte, 64)), wantError: true},
-		{name: "starts_with_number", input: "1users", wantError: true},
-		{name: "sql_injection_semicolon", input: "users; DROP TABLE users; --", wantError: true},
-		{name: "sql_injection_comment", input: "users --", wantError: true},
-		{name: "special_chars", input: "users$table", wantError: true},
-		{name: "special_chars_dash", input: "users-table", wantError: true},
-		{name: "special_chars_space", input: "users table", wantError: true},
+		// Valid quoted identifiers
+		{name: "quoted_simple", input: `"users"`, wantError: false},
+		{name: "quoted_with_special_chars", input: `"user-table"`, wantError: false},
+		{name: "quoted_with_spaces", input: `"user table"`, wantError: false},
+		{name: "quoted_max_length", input: `"` + "a" + "bcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" + `"`, wantError: false}, // 63 chars inside quotes
+
+		// Invalid names - empty and length issues
+		{name: "empty_string", input: "", wantError: true, errorMsg: "invalid table name length: 0 (must be 1-63)"},
+		{name: "too_long_unquoted", input: "a" + string(make([]byte, 63)), wantError: true, errorMsg: "invalid table name length: 64 (must be 1-63)"},
+		{name: "quoted_empty_inner", input: `""`, wantError: true, errorMsg: "invalid table name length: 0 (must be 1-63)"},
+		{name: "quoted_too_long_inner", input: `"` + string(make([]byte, 64)) + `"`, wantError: true, errorMsg: "invalid table name length: 64 (must be 1-63)"},
+
+		// Invalid names - character issues
+		{name: "starts_with_number", input: "1users", wantError: true, errorMsg: "invalid table name: '1users' contains invalid characters"},
+		{name: "sql_injection_semicolon", input: "users; DROP TABLE users; --", wantError: true, errorMsg: "invalid table name: 'users; DROP TABLE users; --' contains invalid characters"},
+		{name: "sql_injection_comment", input: "users --", wantError: true, errorMsg: "invalid table name: 'users --' contains invalid characters"},
+		{name: "special_chars", input: "users$table", wantError: true, errorMsg: "invalid table name: 'users$table' contains invalid characters"},
+		{name: "special_chars_dash", input: "users-table", wantError: true, errorMsg: "invalid table name: 'users-table' contains invalid characters"},
+		{name: "special_chars_space", input: "users table", wantError: true, errorMsg: "invalid table name: 'users table' contains invalid characters"},
+
+		// Invalid quoted identifiers
+		{name: "mismatched_quotes_start_only", input: `"users`, wantError: true, errorMsg: "invalid table name: mismatched quotes in '\"users'"},
+		{name: "mismatched_quotes_end_only", input: `users"`, wantError: true, errorMsg: "invalid table name: mismatched quotes in 'users\"'"},
+		{name: "embedded_quotes", input: `"user"table"`, wantError: true, errorMsg: "invalid table name: '\"user\"table\"' contains embedded quotes"},
+
 		{name: "sql_keywords", input: "SELECT", wantError: false}, // Just checking format, not keywords
 	}
 
@@ -51,21 +68,38 @@ func TestValidateColumnName(t *testing.T) {
 		name      string
 		input     string
 		wantError bool
+		errorMsg  string
 	}{
 		// Valid names
 		{name: "valid_simple", input: "id", wantError: false},
 		{name: "valid_with_underscore", input: "user_id", wantError: false},
 		{name: "valid_with_numbers", input: "col123", wantError: false},
 		{name: "valid_long", input: "very_long_column_name_that_is_still_valid", wantError: false},
+		{name: "valid_max_length", input: "a" + "bcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", wantError: false}, // 63 chars
 
-		// Invalid names
-		{name: "empty", input: "", wantError: true},
-		{name: "too_long", input: "a" + string(make([]byte, 64)), wantError: true},
-		{name: "starts_number", input: "1col", wantError: true},
-		{name: "sql_injection", input: "id; DROP TABLE users; --", wantError: true},
-		{name: "spaces", input: "user id", wantError: true},
-		{name: "special_char_dollar", input: "id$name", wantError: true},
-		{name: "special_char_hash", input: "id#", wantError: true},
+		// Valid quoted identifiers
+		{name: "quoted_simple", input: `"id"`, wantError: false},
+		{name: "quoted_with_special_chars", input: `"user-id"`, wantError: false},
+		{name: "quoted_with_spaces", input: `"user id"`, wantError: false},
+		{name: "quoted_max_length", input: `"` + "a" + "bcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" + `"`, wantError: false}, // 63 chars inside quotes
+
+		// Invalid names - empty and length issues
+		{name: "empty", input: "", wantError: true, errorMsg: "invalid column name length: 0 (must be 1-63)"},
+		{name: "too_long_unquoted", input: "a" + string(make([]byte, 63)), wantError: true, errorMsg: "invalid column name length: 64 (must be 1-63)"},
+		{name: "quoted_empty_inner", input: `""`, wantError: true, errorMsg: "invalid column name length: 0 (must be 1-63)"},
+		{name: "quoted_too_long_inner", input: `"` + string(make([]byte, 64)) + `"`, wantError: true, errorMsg: "invalid column name length: 64 (must be 1-63)"},
+
+		// Invalid names - character issues
+		{name: "starts_number", input: "1col", wantError: true, errorMsg: "invalid column name: '1col' contains invalid characters"},
+		{name: "sql_injection", input: "id; DROP TABLE users; --", wantError: true, errorMsg: "invalid column name: 'id; DROP TABLE users; --' contains invalid characters"},
+		{name: "spaces", input: "user id", wantError: true, errorMsg: "invalid column name: 'user id' contains invalid characters"},
+		{name: "special_char_dollar", input: "id$name", wantError: true, errorMsg: "invalid column name: 'id$name' contains invalid characters"},
+		{name: "special_char_hash", input: "id#", wantError: true, errorMsg: "invalid column name: 'id#' contains invalid characters"},
+
+		// Invalid quoted identifiers
+		{name: "mismatched_quotes_start_only", input: `"id`, wantError: true, errorMsg: "invalid column name: mismatched quotes in '\"id'"},
+		{name: "mismatched_quotes_end_only", input: `id"`, wantError: true, errorMsg: "invalid column name: mismatched quotes in 'id\"'"},
+		{name: "embedded_quotes", input: `"user"id"`, wantError: true, errorMsg: "invalid column name: '\"user\"id\"' contains embedded quotes"},
 	}
 
 	for _, tt := range tests {
@@ -73,6 +107,9 @@ func TestValidateColumnName(t *testing.T) {
 			err := ValidateColumnName(tt.input)
 			if (err != nil) != tt.wantError {
 				t.Errorf("ValidateColumnName(%q) error = %v, wantError %v", tt.input, err, tt.wantError)
+			}
+			if err != nil && tt.errorMsg != "" && err.Error() != tt.errorMsg {
+				t.Errorf("ValidateColumnName(%q) error message = %v, want %v", tt.input, err.Error(), tt.errorMsg)
 			}
 		})
 	}
@@ -133,17 +170,32 @@ func TestValidateQualifiedTableName(t *testing.T) {
 		name      string
 		input     string
 		wantError bool
+		errorMsg  string
 	}{
 		// Valid qualified names
 		{name: "simple_table", input: "users", wantError: false},
 		{name: "schema_table", input: "public.users", wantError: false},
 		{name: "quoted_simple", input: `"users"`, wantError: false},
 		{name: "quoted_schema_table", input: `"public"."users"`, wantError: false},
+		{name: "quoted_with_dots_inside", input: `"user.table"`, wantError: false},
+		{name: "mixed_quoted_unquoted", input: `public."user-table"`, wantError: false},
+		{name: "whitespace_trimmed", input: "  public.users  ", wantError: false},
 
-		// Invalid
-		{name: "empty", input: "", wantError: true},
-		{name: "too_many_dots", input: "schema.table.extra", wantError: true},
-		{name: "invalid_chars", input: "schema.table$name", wantError: true},
+		// Invalid - empty and structure issues
+		{name: "empty", input: "", wantError: true, errorMsg: "qualified table name cannot be empty"},
+		{name: "whitespace_only", input: "   ", wantError: true, errorMsg: "qualified table name cannot be empty"},
+		{name: "too_many_dots", input: "schema.table.extra", wantError: true, errorMsg: "invalid qualified table name 'schema.table.extra': must contain at most one dot for schema.table format"},
+		{name: "unmatched_quote_start", input: `"users`, wantError: true, errorMsg: "invalid qualified table name '\"users': unmatched quote"},
+		{name: "unmatched_quote_end", input: `users"`, wantError: true, errorMsg: "invalid qualified table name 'users\"': unmatched quote"},
+		{name: "unmatched_quote_middle", input: `public."users`, wantError: true, errorMsg: "invalid qualified table name 'public.\"users': unmatched quote"},
+
+		// Invalid - character validation (delegated to ValidateTableName)
+		{name: "invalid_chars_simple", input: "user$table", wantError: true},
+		{name: "invalid_chars_schema", input: "public$.users", wantError: true},
+		{name: "invalid_chars_table", input: "public.user$table", wantError: true},
+		{name: "starts_with_number", input: "1users", wantError: true},
+		{name: "schema_starts_with_number", input: "1schema.users", wantError: true},
+		{name: "table_starts_with_number", input: "public.1users", wantError: true},
 	}
 
 	for _, tt := range tests {
@@ -152,11 +204,80 @@ func TestValidateQualifiedTableName(t *testing.T) {
 			if (err != nil) != tt.wantError {
 				t.Errorf("ValidateQualifiedTableName(%q) error = %v, wantError %v", tt.input, err, tt.wantError)
 			}
+			if err != nil && tt.errorMsg != "" && err.Error() != tt.errorMsg {
+				t.Errorf("ValidateQualifiedTableName(%q) error message = %v, want %v", tt.input, err.Error(), tt.errorMsg)
+			}
 		})
 	}
 }
 
-// BenchmarkValidateTableName benchmarks table name validation
+// TestSplitQualifiedName tests the qualified name splitting logic
+func TestSplitQualifiedName(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		wantParts []string
+		wantError bool
+		errorMsg  string
+	}{
+		{name: "simple_table", input: "users", wantParts: []string{"users"}, wantError: false},
+		{name: "schema_table", input: "public.users", wantParts: []string{"public", "users"}, wantError: false},
+		{name: "quoted_simple", input: `"users"`, wantParts: []string{`"users"`}, wantError: false},
+		{name: "quoted_schema_table", input: `"public"."users"`, wantParts: []string{`"public"`, `"users"`}, wantError: false},
+		{name: "quoted_with_dots", input: `"user.table"`, wantParts: []string{`"user.table"`}, wantError: false},
+		{name: "mixed_quotes", input: `public."user.table"`, wantParts: []string{"public", `"user.table"`}, wantError: false},
+		{name: "empty", input: "", wantParts: []string{""}, wantError: false},
+		{name: "unmatched_quote_start", input: `"users`, wantParts: nil, wantError: true, errorMsg: "invalid qualified table name '\"users': unmatched quote"},
+		{name: "unmatched_quote_end", input: `users"`, wantParts: nil, wantError: true, errorMsg: "invalid qualified table name 'users\"': unmatched quote"},
+		{name: "multiple_dots", input: "schema.table.extra", wantParts: []string{"schema", "table", "extra"}, wantError: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parts, err := splitQualifiedName(tt.input)
+			if (err != nil) != tt.wantError {
+				t.Errorf("splitQualifiedName(%q) error = %v, wantError %v", tt.input, err, tt.wantError)
+				return
+			}
+			if err != nil && tt.errorMsg != "" && err.Error() != tt.errorMsg {
+				t.Errorf("splitQualifiedName(%q) error message = %v, want %v", tt.input, err.Error(), tt.errorMsg)
+				return
+			}
+			if !tt.wantError && !reflect.DeepEqual(parts, tt.wantParts) {
+				t.Errorf("splitQualifiedName(%q) = %v, want %v", tt.input, parts, tt.wantParts)
+			}
+		})
+	}
+}
+
+// TestValidateQualifiedNameParts tests the parts validation logic
+func TestValidateQualifiedNameParts(t *testing.T) {
+	tests := []struct {
+		name          string
+		parts         []string
+		qualifiedName string
+		wantError     bool
+		errorMsg      string
+	}{
+		{name: "valid_single", parts: []string{"users"}, qualifiedName: "users", wantError: false},
+		{name: "valid_schema_table", parts: []string{"public", "users"}, qualifiedName: "public.users", wantError: false},
+		{name: "empty_parts", parts: []string{}, qualifiedName: "", wantError: true, errorMsg: "qualified table name cannot be empty"},
+		{name: "too_many_parts", parts: []string{"schema", "table", "extra"}, qualifiedName: "schema.table.extra", wantError: true, errorMsg: "invalid qualified table name 'schema.table.extra': must contain at most one dot for schema.table format"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateQualifiedNameParts(tt.parts, tt.qualifiedName)
+			if (err != nil) != tt.wantError {
+				t.Errorf("validateQualifiedNameParts(%v, %q) error = %v, wantError %v", tt.parts, tt.qualifiedName, err, tt.wantError)
+				return
+			}
+			if err != nil && tt.errorMsg != "" && err.Error() != tt.errorMsg {
+				t.Errorf("validateQualifiedNameParts(%v, %q) error message = %v, want %v", tt.parts, tt.qualifiedName, err.Error(), tt.errorMsg)
+			}
+		})
+	}
+}
 func BenchmarkValidateTableName(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = ValidateTableName("user_profiles")

@@ -95,7 +95,7 @@ func TestParseSelectAndJoins_NilAndWhitespace(t *testing.T) {
 		t.Fatalf("unexpected trimmed select: %#v", params.Select)
 	}
 
-	if err := parseJoinsFilter([]interface{}{}, params); err != nil {
+	if err := ParseJoinsFilter([]interface{}{}, params); err != nil {
 		t.Fatalf("empty joins slice should be ok: %v", err)
 	}
 }

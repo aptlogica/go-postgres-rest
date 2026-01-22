@@ -213,3 +213,89 @@ func TestParseRowCoversUUIDAndOrderIndex(t *testing.T) {
 		t.Fatalf("expected name to decode to string 'plain', got %v", row["name"])
 	}
 }
+
+// Test helper functions for convertToPostgresArray
+func TestConvertPrimitiveArray(t *testing.T) {
+	svc := &PostgresDbService{}
+
+	// Test string array
+	result := svc.convertPrimitiveArray([]string{"a", "b", "c"})
+	if result == nil {
+		t.Fatal("expected non-nil result for string array")
+	}
+
+	// Test int array
+	result = svc.convertPrimitiveArray([]int{1, 2, 3})
+	if result == nil {
+		t.Fatal("expected non-nil result for int array")
+	}
+
+	// Test empty array returns nil
+	result = svc.convertPrimitiveArray([]string{})
+	if result != nil {
+		t.Fatal("expected nil for empty array")
+	}
+
+	// Test non-array type returns nil
+	result = svc.convertPrimitiveArray("not an array")
+	if result != nil {
+		t.Fatal("expected nil for non-array type")
+	}
+}
+
+func TestConvertComplexArray(t *testing.T) {
+	svc := &PostgresDbService{}
+
+	// Test interface{} array
+	result := svc.convertComplexArray([]interface{}{1, "test", true})
+	if result == nil {
+		t.Fatal("expected non-nil result for interface array")
+	}
+
+	// Test map array
+	result = svc.convertComplexArray([]map[string]interface{}{
+		{"key": "value"},
+		{"num": 42},
+	})
+	if result == nil {
+		t.Fatal("expected non-nil result for map array")
+	}
+
+	// Test empty array returns nil
+	result = svc.convertComplexArray([]interface{}{})
+	if result != nil {
+		t.Fatal("expected nil for empty array")
+	}
+
+	// Test non-complex type returns nil
+	result = svc.convertComplexArray([]string{"simple"})
+	if result != nil {
+		t.Fatal("expected nil for primitive array type")
+	}
+}
+
+func TestConvertToPostgresArray(t *testing.T) {
+	// Test primitive arrays
+	result := convertToPostgresArray([]string{"a", "b"})
+	if result == nil {
+		t.Fatal("expected non-nil result for string array")
+	}
+
+	// Test complex arrays
+	result = convertToPostgresArray([]interface{}{1, "test"})
+	if result == nil {
+		t.Fatal("expected non-nil result for interface array")
+	}
+
+	// Test non-array types pass through
+	result = convertToPostgresArray("not an array")
+	if result != "not an array" {
+		t.Fatalf("expected passthrough for non-array, got %v", result)
+	}
+
+	// Test empty arrays return nil
+	result = convertToPostgresArray([]string{})
+	if result != nil {
+		t.Fatal("expected nil for empty array")
+	}
+}

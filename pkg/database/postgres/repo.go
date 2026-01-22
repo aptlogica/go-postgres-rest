@@ -49,6 +49,27 @@ const (
 	defaultClause   = "DEFAULT"
 	checkClause     = "CHECK"
 	equalParamFmt   = "%s = $%d"
+
+	// Validation constants
+	maxNameLength          = 63
+	quoteChar              = `"`
+	tableNameLengthErrFmt  = "invalid table name length: %d (must be 1-63)"
+	columnNameLengthErrFmt = "invalid column name length: %d (must be 1-63)"
+	tableNameErrPrefix     = "invalid table name: "
+	columnNameErrPrefix    = "invalid column name: "
+	mismatchedQuotesErr    = "mismatched quotes in '%s'"
+	embeddedQuotesErr      = "'%s' contains embedded quotes"
+	invalidCharsErr        = "'%s' contains invalid characters"
+
+	// Error message constants
+	invalidTableNameErrFmt   = "invalid table name: %w"
+	invalidColumnNameErrFmt  = "invalid column name: %w"
+	failedToGetColumnsErrFmt = "failed to get columns: %w"
+	failedToScanRowErrFmt    = "failed to scan row: %w"
+
+	// SQL constants
+	selectKeyword          = "SELECT "
+	dropConstraintQueryFmt = "ALTER TABLE %s DROP CONSTRAINT IF EXISTS %s"
 )
 
 // ValidateTableName ensures table name is safe for SQL
@@ -56,30 +77,30 @@ func ValidateTableName(name string) error {
 	name = strings.TrimSpace(name)
 
 	if len(name) == 0 {
-		return fmt.Errorf("invalid table name length: %d (must be 1-63)", len(name))
+		return fmt.Errorf(tableNameLengthErrFmt, len(name))
 	}
 
 	// Support quoted identifiers (e.g., "public"."titanic-dataset")
-	if strings.HasPrefix(name, `"`) || strings.HasSuffix(name, `"`) {
-		if !(strings.HasPrefix(name, `"`) && strings.HasSuffix(name, `"`)) {
-			return fmt.Errorf("invalid table name: mismatched quotes in '%s'", name)
+	if strings.HasPrefix(name, quoteChar) || strings.HasSuffix(name, quoteChar) {
+		if !(strings.HasPrefix(name, quoteChar) && strings.HasSuffix(name, quoteChar)) {
+			return fmt.Errorf(tableNameErrPrefix+mismatchedQuotesErr, name)
 		}
 
-		inner := strings.TrimSuffix(strings.TrimPrefix(name, `"`), `"`)
-		if len(inner) == 0 || len(inner) > 63 {
-			return fmt.Errorf("invalid table name length: %d (must be 1-63)", len(inner))
+		inner := strings.TrimSuffix(strings.TrimPrefix(name, quoteChar), quoteChar)
+		if len(inner) == 0 || len(inner) > maxNameLength {
+			return fmt.Errorf(tableNameLengthErrFmt, len(inner))
 		}
-		if strings.Contains(inner, `"`) {
-			return fmt.Errorf("invalid table name: '%s' contains embedded quotes", name)
+		if strings.Contains(inner, quoteChar) {
+			return fmt.Errorf(tableNameErrPrefix+embeddedQuotesErr, name)
 		}
 		return nil
 	}
 
-	if len(name) > 63 {
-		return fmt.Errorf("invalid table name length: %d (must be 1-63)", len(name))
+	if len(name) > maxNameLength {
+		return fmt.Errorf(tableNameLengthErrFmt, len(name))
 	}
 	if !validTableRegex.MatchString(name) {
-		return fmt.Errorf("invalid table name: '%s' contains invalid characters", name)
+		return fmt.Errorf(tableNameErrPrefix+invalidCharsErr, name)
 	}
 	return nil
 }
@@ -89,43 +110,36 @@ func ValidateColumnName(name string) error {
 	name = strings.TrimSpace(name)
 
 	if len(name) == 0 {
-		return fmt.Errorf("invalid column name length: %d (must be 1-63)", len(name))
+		return fmt.Errorf(columnNameLengthErrFmt, len(name))
 	}
 
 	// Support quoted identifiers (e.g., "survived-123", "Survived")
-	if strings.HasPrefix(name, `"`) || strings.HasSuffix(name, `"`) {
-		if !(strings.HasPrefix(name, `"`) && strings.HasSuffix(name, `"`)) {
-			return fmt.Errorf("invalid column name: mismatched quotes in '%s'", name)
+	if strings.HasPrefix(name, quoteChar) || strings.HasSuffix(name, quoteChar) {
+		if !(strings.HasPrefix(name, quoteChar) && strings.HasSuffix(name, quoteChar)) {
+			return fmt.Errorf(columnNameErrPrefix+mismatchedQuotesErr, name)
 		}
 
-		inner := strings.TrimSuffix(strings.TrimPrefix(name, `"`), `"`)
-		if len(inner) == 0 || len(inner) > 63 {
-			return fmt.Errorf("invalid column name length: %d (must be 1-63)", len(inner))
+		inner := strings.TrimSuffix(strings.TrimPrefix(name, quoteChar), quoteChar)
+		if len(inner) == 0 || len(inner) > maxNameLength {
+			return fmt.Errorf(columnNameLengthErrFmt, len(inner))
 		}
-		if strings.Contains(inner, `"`) {
-			return fmt.Errorf("invalid column name: '%s' contains embedded quotes", name)
+		if strings.Contains(inner, quoteChar) {
+			return fmt.Errorf(columnNameErrPrefix+embeddedQuotesErr, name)
 		}
 		return nil
 	}
 
-	if len(name) > 63 {
-		return fmt.Errorf("invalid column name length: %d (must be 1-63)", len(name))
+	if len(name) > maxNameLength {
+		return fmt.Errorf(columnNameLengthErrFmt, len(name))
 	}
 	if !validColumnRegex.MatchString(name) {
-		return fmt.Errorf("invalid column name: '%s' contains invalid characters", name)
+		return fmt.Errorf(columnNameErrPrefix+invalidCharsErr, name)
 	}
 	return nil
 }
 
-// ValidateQualifiedTableName ensures qualified table name (schema.table) is safe for SQL
-// Supports formats like "table", "schema.table", "schema"."table", or "public"."relations"
-func ValidateQualifiedTableName(qualifiedName string) error {
-	qualifiedName = strings.TrimSpace(qualifiedName)
-	if len(qualifiedName) == 0 {
-		return fmt.Errorf("qualified table name cannot be empty")
-	}
-
-	// Split on dots while respecting quoted identifiers
+// splitQualifiedName splits a qualified table name on dots while respecting quoted identifiers
+func splitQualifiedName(qualifiedName string) ([]string, error) {
 	parts := make([]string, 0, 2)
 	var current strings.Builder
 	inQuotes := false
@@ -148,28 +162,56 @@ func ValidateQualifiedTableName(qualifiedName string) error {
 	}
 
 	if inQuotes {
-		return fmt.Errorf("invalid qualified table name '%s': unmatched quote", qualifiedName)
+		return nil, fmt.Errorf("invalid qualified table name '%s': unmatched quote", qualifiedName)
 	}
 
 	parts = append(parts, current.String())
+	return parts, nil
+}
+
+// validateQualifiedNameParts validates the split parts of a qualified name
+func validateQualifiedNameParts(parts []string, qualifiedName string) error {
 	if len(parts) == 0 {
 		return fmt.Errorf("qualified table name cannot be empty")
 	}
 	if len(parts) > 2 {
 		return fmt.Errorf("invalid qualified table name '%s': must contain at most one dot for schema.table format", qualifiedName)
 	}
+	return nil
+}
+
+// validateSchemaTable validates schema and table parts
+func validateSchemaTable(schema, table, qualifiedName string) error {
+	if err := ValidateTableName(schema); err != nil {
+		return fmt.Errorf("invalid schema in '%s': %w", qualifiedName, err)
+	}
+	if err := ValidateTableName(table); err != nil {
+		return fmt.Errorf("invalid table in '%s': %w", qualifiedName, err)
+	}
+	return nil
+}
+
+// ValidateQualifiedTableName ensures qualified table name (schema.table) is safe for SQL
+// Supports formats like "table", "schema.table", "schema"."table", or "public"."relations"
+func ValidateQualifiedTableName(qualifiedName string) error {
+	qualifiedName = strings.TrimSpace(qualifiedName)
+	if len(qualifiedName) == 0 {
+		return fmt.Errorf("qualified table name cannot be empty")
+	}
+
+	parts, err := splitQualifiedName(qualifiedName)
+	if err != nil {
+		return err
+	}
+
+	if err := validateQualifiedNameParts(parts, qualifiedName); err != nil {
+		return err
+	}
 
 	if len(parts) == 2 {
 		schema := strings.TrimSpace(parts[0])
 		table := strings.TrimSpace(parts[1])
-
-		if err := ValidateTableName(schema); err != nil {
-			return fmt.Errorf("invalid schema in '%s': %w", qualifiedName, err)
-		}
-		if err := ValidateTableName(table); err != nil {
-			return fmt.Errorf("invalid table in '%s': %w", qualifiedName, err)
-		}
-		return nil
+		return validateSchemaTable(schema, table, qualifiedName)
 	}
 
 	if err := ValidateTableName(parts[0]); err != nil {
@@ -198,12 +240,12 @@ func ValidateOperator(op string) error {
 func (postgresDbService *PostgresDbService) AddField(collection string, req models.AddColumnRequest) error {
 	// Validate table name (may include schema)
 	if err := ValidateQualifiedTableName(collection); err != nil {
-		return fmt.Errorf("invalid table name: %w", err)
+		return fmt.Errorf(invalidTableNameErrFmt, err)
 	}
 
 	// Validate column name
 	if err := ValidateColumnName(req.Column.Name); err != nil {
-		return fmt.Errorf("invalid column name: %w", err)
+		return fmt.Errorf(invalidColumnNameErrFmt, err)
 	}
 
 	var query strings.Builder
@@ -269,12 +311,12 @@ func (postgresDbService *PostgresDbService) AlterCollection(collection string, r
 func (postgresDbService *PostgresDbService) dropColumn(tableName string, req models.DropColumnRequest) error {
 	// Validate table name (may include schema)
 	if err := ValidateQualifiedTableName(tableName); err != nil {
-		return fmt.Errorf("invalid table name: %w", err)
+		return fmt.Errorf(invalidTableNameErrFmt, err)
 	}
 
 	// Validate column name
 	if err := ValidateColumnName(req.ColumnName); err != nil {
-		return fmt.Errorf("invalid column name: %w", err)
+		return fmt.Errorf(invalidColumnNameErrFmt, err)
 	}
 
 	query := fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", tableName, req.ColumnName)
@@ -294,12 +336,12 @@ func (postgresDbService *PostgresDbService) dropColumn(tableName string, req mod
 func (postgresDbService *PostgresDbService) modifyColumn(tableName string, req models.ModifyColumnRequest) error {
 	// Validate table name (may include schema)
 	if err := ValidateQualifiedTableName(tableName); err != nil {
-		return fmt.Errorf("invalid table name: %w", err)
+		return fmt.Errorf(invalidTableNameErrFmt, err)
 	}
 
 	// Validate column name
 	if err := ValidateColumnName(req.ColumnName); err != nil {
-		return fmt.Errorf("invalid column name: %w", err)
+		return fmt.Errorf(invalidColumnNameErrFmt, err)
 	}
 
 	var queries []string
@@ -340,7 +382,7 @@ func (postgresDbService *PostgresDbService) modifyColumn(tableName string, req m
 func (postgresDbService *PostgresDbService) renameColumn(tableName string, req models.RenameColumnRequest) error {
 	// Validate table name (may include schema)
 	if err := ValidateQualifiedTableName(tableName); err != nil {
-		return fmt.Errorf("invalid table name: %w", err)
+		return fmt.Errorf(invalidTableNameErrFmt, err)
 	}
 
 	// Validate old and new column names
@@ -468,7 +510,7 @@ func (postgresDbService *PostgresDbService) validateCreateTableRequest(req model
 // validateTableNameForCreation validates the table name for table creation
 func (postgresDbService *PostgresDbService) validateTableNameForCreation(tableName string) error {
 	if err := ValidateQualifiedTableName(tableName); err != nil {
-		return fmt.Errorf("invalid table name: %w", err)
+		return fmt.Errorf(invalidTableNameErrFmt, err)
 	}
 	return nil
 }
@@ -477,7 +519,7 @@ func (postgresDbService *PostgresDbService) validateTableNameForCreation(tableNa
 func (postgresDbService *PostgresDbService) validateColumnsForCreation(columns []models.ColumnDefinition) error {
 	for _, col := range columns {
 		if err := ValidateColumnName(col.Name); err != nil {
-			return fmt.Errorf("invalid column name: %w", err)
+			return fmt.Errorf(invalidColumnNameErrFmt, err)
 		}
 	}
 	return nil
@@ -586,7 +628,7 @@ func (postgresDbService *PostgresDbService) buildForeignKeyDefinitions(foreignKe
 func (postgresDbService *PostgresDbService) Delete(collection string, id any) error {
 	// Validate table name (may include schema)
 	if err := ValidateQualifiedTableName(collection); err != nil {
-		return fmt.Errorf("invalid table name: %w", err)
+		return fmt.Errorf(invalidTableNameErrFmt, err)
 	}
 
 	query := fmt.Sprintf("DELETE FROM %s WHERE id = $1", collection)
@@ -670,6 +712,53 @@ func (postgresDbService *PostgresDbService) toInterfaceSlice(v interface{}) ([]i
 	}
 }
 
+// buildSimpleCondition builds conditions for simple operators (=, !=, <, >, etc.)
+func (postgresDbService *PostgresDbService) buildSimpleCondition(filter models.QueryFilter, operator string, argCounter int) (string, []interface{}, int) {
+	condition := fmt.Sprintf("%s %s $%d", pq.QuoteIdentifier(filter.Column), operator, argCounter)
+	args := []interface{}{filter.Value}
+	return condition, args, argCounter + 1
+}
+
+// buildInCondition builds conditions for IN/NOT IN operators
+func (postgresDbService *PostgresDbService) buildInCondition(filter models.QueryFilter, useNot bool, argCounter int) (string, []interface{}, int) {
+	values, ok := postgresDbService.toInterfaceSlice(filter.Value)
+	if !ok || len(values) == 0 {
+		return "", nil, argCounter
+	}
+
+	placeholders := make([]string, len(values))
+	args := make([]interface{}, 0, len(values))
+	for i, val := range values {
+		placeholders[i] = fmt.Sprintf("$%d", argCounter)
+		args = append(args, val)
+		argCounter++
+	}
+
+	operator := "IN"
+	if useNot {
+		operator = "NOT IN"
+	}
+	condition := fmt.Sprintf("%s %s (%s)", pq.QuoteIdentifier(filter.Column), operator, strings.Join(placeholders, ", "))
+	return condition, args, argCounter
+}
+
+// buildNullCondition builds conditions for IS NULL/IS NOT NULL operators
+func (postgresDbService *PostgresDbService) buildNullCondition(filter models.QueryFilter, useNot bool, argCounter int) (string, []interface{}, int) {
+	operator := "IS NULL"
+	if useNot {
+		operator = "IS NOT NULL"
+	}
+	condition := fmt.Sprintf("%s %s", pq.QuoteIdentifier(filter.Column), operator)
+	return condition, nil, argCounter
+}
+
+// buildAnyCondition builds conditions for ANY operator
+func (postgresDbService *PostgresDbService) buildAnyCondition(filter models.QueryFilter, argCounter int) (string, []interface{}, int) {
+	condition := fmt.Sprintf("$%d = ANY(%s)", argCounter, pq.QuoteIdentifier(filter.Column))
+	args := []interface{}{filter.Value}
+	return condition, args, argCounter + 1
+}
+
 func (postgresDbService *PostgresDbService) buildFilterCondition(filter models.QueryFilter, argCounter int) (string, []interface{}, int) {
 	// VALIDATE OPERATOR FIRST - before any SQL string building
 	if err := ValidateOperator(filter.Operator); err != nil {
@@ -684,90 +773,37 @@ func (postgresDbService *PostgresDbService) buildFilterCondition(filter models.Q
 		return "", nil, argCounter
 	}
 
-	// Pre-allocate args with capacity - most cases add 1 value, IN/NOT_IN cases may add more
-	var args []interface{}
-	var condition string
-
 	switch strings.ToLower(filter.Operator) {
 	case "eq", "=":
-		// Use pq.QuoteIdentifier for safe column name escaping
-		condition = fmt.Sprintf(equalParamFmt, pq.QuoteIdentifier(filter.Column), argCounter)
-		args = append(args, filter.Value)
-		argCounter++
+		return postgresDbService.buildSimpleCondition(filter, "=", argCounter)
 	case "neq", "!=", "<>":
-		condition = fmt.Sprintf("%s != $%d", pq.QuoteIdentifier(filter.Column), argCounter)
-		args = append(args, filter.Value)
-		argCounter++
+		return postgresDbService.buildSimpleCondition(filter, "!=", argCounter)
 	case "gt", ">":
-		condition = fmt.Sprintf("%s > $%d", pq.QuoteIdentifier(filter.Column), argCounter)
-		args = append(args, filter.Value)
-		argCounter++
+		return postgresDbService.buildSimpleCondition(filter, ">", argCounter)
 	case "gte", ">=":
-		condition = fmt.Sprintf("%s >= $%d", pq.QuoteIdentifier(filter.Column), argCounter)
-		args = append(args, filter.Value)
-		argCounter++
+		return postgresDbService.buildSimpleCondition(filter, ">=", argCounter)
 	case "lt", "<":
-		condition = fmt.Sprintf("%s < $%d", pq.QuoteIdentifier(filter.Column), argCounter)
-		args = append(args, filter.Value)
-		argCounter++
+		return postgresDbService.buildSimpleCondition(filter, "<", argCounter)
 	case "lte", "<=":
-		condition = fmt.Sprintf("%s <= $%d", pq.QuoteIdentifier(filter.Column), argCounter)
-		args = append(args, filter.Value)
-		argCounter++
+		return postgresDbService.buildSimpleCondition(filter, "<=", argCounter)
 	case "like":
-		condition = fmt.Sprintf("%s LIKE $%d", pq.QuoteIdentifier(filter.Column), argCounter)
-		args = append(args, filter.Value)
-		argCounter++
+		return postgresDbService.buildSimpleCondition(filter, "LIKE", argCounter)
 	case "ilike":
-		condition = fmt.Sprintf("%s ILIKE $%d", pq.QuoteIdentifier(filter.Column), argCounter)
-		args = append(args, filter.Value)
-		argCounter++
+		return postgresDbService.buildSimpleCondition(filter, "ILIKE", argCounter)
 	case "in":
-		if values, ok := postgresDbService.toInterfaceSlice(filter.Value); ok && len(values) > 0 {
-			// Pre-allocate placeholders with exact size
-			placeholders := make([]string, len(values))
-			for i, val := range values {
-				placeholders[i] = fmt.Sprintf("$%d", argCounter)
-				args = append(args, val)
-				argCounter++
-			}
-			condition = fmt.Sprintf("%s IN (%s)", pq.QuoteIdentifier(filter.Column), strings.Join(placeholders, ", "))
-		} else {
-			// Invalid type for 'in' filter: expected []interface{} or compatible slice, got %T
-			// Silently return empty condition; caller should validate filter values
-			condition = ""
-		}
+		return postgresDbService.buildInCondition(filter, false, argCounter)
 	case "not_in":
-		if values, ok := postgresDbService.toInterfaceSlice(filter.Value); ok && len(values) > 0 {
-			// Pre-allocate placeholders with exact size
-			placeholders := make([]string, len(values))
-			for i, val := range values {
-				placeholders[i] = fmt.Sprintf("$%d", argCounter)
-				args = append(args, val)
-				argCounter++
-			}
-			condition = fmt.Sprintf("%s NOT IN (%s)", pq.QuoteIdentifier(filter.Column), strings.Join(placeholders, ", "))
-		} else {
-			// Invalid type for 'not_in' filter: expected []interface{} or compatible slice, got %T
-			// Silently return empty condition; caller should validate filter values
-			condition = ""
-		}
+		return postgresDbService.buildInCondition(filter, true, argCounter)
 	case "is_null":
-		condition = fmt.Sprintf("%s IS NULL", pq.QuoteIdentifier(filter.Column))
+		return postgresDbService.buildNullCondition(filter, false, argCounter)
 	case "is_not_null":
-		condition = fmt.Sprintf("%s IS NOT NULL", pq.QuoteIdentifier(filter.Column))
+		return postgresDbService.buildNullCondition(filter, true, argCounter)
 	case "any":
-		condition = fmt.Sprintf("$%d = ANY(%s)", argCounter, pq.QuoteIdentifier(filter.Column))
-		args = append(args, filter.Value)
-		argCounter++
+		return postgresDbService.buildAnyCondition(filter, argCounter)
 	default:
 		// This should not happen due to ValidateOperator check above, but keep as safety net
-		condition = fmt.Sprintf("%s %s $%d", pq.QuoteIdentifier(filter.Column), filter.Operator, argCounter)
-		args = append(args, filter.Value)
-		argCounter++
+		return postgresDbService.buildSimpleCondition(filter, filter.Operator, argCounter)
 	}
-
-	return condition, args, argCounter
 }
 
 // validateAndQuoteColumnList validates and safely quotes a list of column names
@@ -929,56 +965,79 @@ func (postgresDbService *PostgresDbService) BuildAdvancedQuery(tableName string,
 	return query.String(), args
 }
 
+// buildAggregateParts builds the aggregate function parts of SELECT clause
+func (postgresDbService *PostgresDbService) buildAggregateParts(aggregates []models.AggregateFunction) []string {
+	var aggParts []string
+	for _, agg := range aggregates {
+		// Validate aggregate column name for safety
+		column := agg.Column
+		if err := ValidateColumnName(agg.Column); err == nil {
+			column = pq.QuoteIdentifier(agg.Column)
+		}
+
+		// Validate aggregate function is safe
+		funcName := strings.ToUpper(agg.Function)
+		if postgresDbService.isValidAggregateFunction(funcName) {
+			aggStr := fmt.Sprintf("%s(%s)", funcName, column)
+			if agg.Alias != "" {
+				// Validate alias column name
+				if err := ValidateColumnName(agg.Alias); err == nil {
+					aggStr += " AS " + pq.QuoteIdentifier(agg.Alias)
+				}
+			}
+			aggParts = append(aggParts, aggStr)
+		}
+	}
+	return aggParts
+}
+
+// isValidAggregateFunction checks if the aggregate function is allowed
+func (postgresDbService *PostgresDbService) isValidAggregateFunction(funcName string) bool {
+	switch funcName {
+	case "COUNT", "SUM", "AVG", "MIN", "MAX":
+		return true
+	default:
+		return false
+	}
+}
+
+// buildSelectColumnParts builds the column selection parts of SELECT clause
+func (postgresDbService *PostgresDbService) buildSelectColumnParts(selectCols []string) []string {
+	if len(selectCols) == 0 {
+		return []string{"*"}
+	}
+
+	// Validate and quote SELECT columns
+	quotedCols, err := validateAndQuoteColumnList(selectCols)
+	if err == nil {
+		return quotedCols
+	}
+
+	// If validation fails, fall back to SELECT *
+	return []string{"*"}
+}
+
 // buildSelectClause builds the SELECT clause with aggregations and column selection
 func (postgresDbService *PostgresDbService) buildSelectClause(params models.QueryParams) (string, []interface{}, int) {
 	var selectParts []string
-	argCounter := 1
 
 	if len(params.Aggregates) > 0 {
-		// Pre-allocate selectParts with exact size
-		selectParts = make([]string, 0, len(params.Aggregates)+len(params.Select))
-		for _, agg := range params.Aggregates {
-			// Validate aggregate column name for safety
-			if err := ValidateColumnName(agg.Column); err == nil {
-				agg.Column = pq.QuoteIdentifier(agg.Column)
-			}
-			// Validate aggregate function is safe
-			funcName := strings.ToUpper(agg.Function)
-			if funcName == "COUNT" || funcName == "SUM" || funcName == "AVG" || funcName == "MIN" || funcName == "MAX" {
-				aggStr := fmt.Sprintf("%s(%s)", funcName, agg.Column)
-				if agg.Alias != "" {
-					// Validate alias column name
-					if err := ValidateColumnName(agg.Alias); err == nil {
-						aggStr += " AS " + pq.QuoteIdentifier(agg.Alias)
-					}
-				}
-				selectParts = append(selectParts, aggStr)
-			}
-		}
+		// Build aggregate parts
+		aggParts := postgresDbService.buildAggregateParts(params.Aggregates)
+		selectParts = append(selectParts, aggParts...)
+
+		// Add select columns if present
 		if len(params.Select) > 0 {
-			// Validate and quote SELECT columns
-			quotedCols, err := validateAndQuoteColumnList(params.Select)
-			if err == nil {
-				selectParts = append(selectParts, quotedCols...)
-			} else {
-				// If validation fails, fall back to SELECT *
-				selectParts = append(selectParts, "*")
-			}
-		}
-	} else if len(params.Select) > 0 {
-		// Validate and quote SELECT columns
-		quotedCols, err := validateAndQuoteColumnList(params.Select)
-		if err == nil {
-			selectParts = append(selectParts, quotedCols...)
-		} else {
-			// If validation fails, fall back to SELECT *
-			selectParts = append(selectParts, "*")
+			colParts := postgresDbService.buildSelectColumnParts(params.Select)
+			selectParts = append(selectParts, colParts...)
 		}
 	} else {
-		selectParts = append(selectParts, "*")
+		// Build select column parts
+		colParts := postgresDbService.buildSelectColumnParts(params.Select)
+		selectParts = append(selectParts, colParts...)
 	}
 
-	return "SELECT " + strings.Join(selectParts, ", "), nil, argCounter
+	return selectKeyword + strings.Join(selectParts, ", "), nil, 1
 }
 
 // buildJoinClause builds the JOIN clauses
@@ -1138,7 +1197,7 @@ func (postgresDbService *PostgresDbService) ExecuteQuery(name string, params mod
 
 	columns, err := rows.Columns()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get columns: %w", err)
+		return nil, fmt.Errorf(failedToGetColumnsErrFmt, err)
 	}
 
 	var results []map[string]interface{}
@@ -1150,7 +1209,7 @@ func (postgresDbService *PostgresDbService) ExecuteQuery(name string, params mod
 		}
 
 		if err := rows.Scan(valuePtrs...); err != nil {
-			return nil, fmt.Errorf("failed to scan row: %w", err)
+			return nil, fmt.Errorf(failedToScanRowErrFmt, err)
 		}
 
 		row := postgresDbService.parseRow(columns, values)
@@ -1299,7 +1358,7 @@ func tryParseJSONElement(elem string) interface{} {
 func (postgresDbService *PostgresDbService) Insert(collection string, data map[string]any) (any, error) {
 	// Validate table name (may include schema)
 	if err := ValidateQualifiedTableName(collection); err != nil {
-		return nil, fmt.Errorf("invalid table name: %w", err)
+		return nil, fmt.Errorf(invalidTableNameErrFmt, err)
 	}
 
 	if len(data) == 0 {
@@ -1315,7 +1374,7 @@ func (postgresDbService *PostgresDbService) Insert(collection string, data map[s
 	for col, val := range data {
 		// Validate column name
 		if err := ValidateColumnName(col); err != nil {
-			return nil, fmt.Errorf("invalid column name: %w", err)
+			return nil, fmt.Errorf(invalidColumnNameErrFmt, err)
 		}
 		columns = append(columns, col)
 		placeholders = append(placeholders, fmt.Sprintf("$%d", i))
@@ -1342,7 +1401,7 @@ func (postgresDbService *PostgresDbService) Insert(collection string, data map[s
 
 	cols, err := rows.Columns()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get columns: %w", err)
+		return nil, fmt.Errorf(failedToGetColumnsErrFmt, err)
 	}
 
 	values := make([]interface{}, len(cols))
@@ -1352,7 +1411,7 @@ func (postgresDbService *PostgresDbService) Insert(collection string, data map[s
 	}
 
 	if err := rows.Scan(valuePtrs...); err != nil {
-		return nil, fmt.Errorf("failed to scan row: %w", err)
+		return nil, fmt.Errorf(failedToScanRowErrFmt, err)
 	}
 
 	// Use parseRow to process the row
@@ -1398,7 +1457,7 @@ func (postgresDbService *PostgresDbService) Update(collection string, id any, da
 
 	cols, err := rows.Columns()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get columns: %w", err)
+		return nil, fmt.Errorf(failedToGetColumnsErrFmt, err)
 	}
 
 	values := make([]interface{}, len(cols))
@@ -1408,7 +1467,7 @@ func (postgresDbService *PostgresDbService) Update(collection string, id any, da
 	}
 
 	if err := rows.Scan(valuePtrs...); err != nil {
-		return nil, fmt.Errorf("failed to scan row: %w", err)
+		return nil, fmt.Errorf(failedToScanRowErrFmt, err)
 	}
 
 	result := postgresDbService.parseRow(cols, values)
@@ -1416,7 +1475,8 @@ func (postgresDbService *PostgresDbService) Update(collection string, id any, da
 	return result, nil
 }
 
-func convertToPostgresArray(val interface{}) interface{} {
+// convertPrimitiveArray converts primitive slice types to PostgreSQL arrays
+func (postgresDbService *PostgresDbService) convertPrimitiveArray(val interface{}) interface{} {
 	switch v := val.(type) {
 	case []string:
 		if len(v) == 0 {
@@ -1443,6 +1503,14 @@ func convertToPostgresArray(val interface{}) interface{} {
 			return nil
 		}
 		return pq.Array(v)
+	default:
+		return nil // not a primitive array
+	}
+}
+
+// convertComplexArray converts complex slice types to PostgreSQL arrays
+func (postgresDbService *PostgresDbService) convertComplexArray(val interface{}) interface{} {
+	switch v := val.(type) {
 	case []interface{}:
 		if len(v) == 0 {
 			return nil
@@ -1454,12 +1522,68 @@ func convertToPostgresArray(val interface{}) interface{} {
 		}
 		jsonStrs, err := mapsToJSONStrings(v)
 		if err != nil {
-			return nil // Fallback to original array if JSON marshaling fails
+			return nil // Conversion failed
 		}
 		return pq.Array(jsonStrs)
 	default:
+		return nil // not a complex array
+	}
+}
+
+// isEmptySlice checks if the value is an empty slice
+func isEmptySlice(val interface{}) bool {
+	switch v := val.(type) {
+	case []string:
+		return len(v) == 0
+	case []int:
+		return len(v) == 0
+	case []int64:
+		return len(v) == 0
+	case []float64:
+		return len(v) == 0
+	case []bool:
+		return len(v) == 0
+	case []interface{}:
+		return len(v) == 0
+	case []map[string]interface{}:
+		return len(v) == 0
+	default:
+		return false
+	}
+}
+
+// isArrayType checks if the value is an array/slice type that should be converted
+func isArrayType(val interface{}) bool {
+	switch val.(type) {
+	case []string, []int, []int64, []float64, []bool, []interface{}, []map[string]interface{}:
+		return true
+	default:
+		return false
+	}
+}
+
+func convertToPostgresArray(val interface{}) interface{} {
+	// If it's not an array type, return as-is
+	if !isArrayType(val) {
 		return val
 	}
+
+	// Check for empty slices - return nil for empty arrays
+	if isEmptySlice(val) {
+		return nil
+	}
+
+	// For non-empty array types, try conversions
+	if result := (&PostgresDbService{}).convertPrimitiveArray(val); result != nil {
+		return result
+	}
+
+	if result := (&PostgresDbService{}).convertComplexArray(val); result != nil {
+		return result
+	}
+
+	// Conversion failed - return nil
+	return nil
 }
 
 func mapsToJSONStrings(arr []map[string]interface{}) ([]string, error) {
@@ -1483,10 +1607,10 @@ func mapsToJSONStrings(arr []map[string]interface{}) ([]string, error) {
 	return result, nil
 }
 
-func (postgresDbService *PostgresDbService) loadTableDetails(table *models.Table) error {
-	// Load columns
+// loadColumns loads column metadata for a table
+func (postgresDbService *PostgresDbService) loadColumns(table *models.Table) error {
 	columnsQuery := `
-        SELECT 
+        SELECT
             column_name,
             data_type,
             is_nullable,
@@ -1542,8 +1666,11 @@ func (postgresDbService *PostgresDbService) loadTableDetails(table *models.Table
 		return fmt.Errorf("error iterating columns for table %s: %w", table.Name, err)
 	}
 	table.Columns = cols
+	return nil
+}
 
-	// Load primary keys
+// loadPrimaryKeys loads primary key information for a table
+func (postgresDbService *PostgresDbService) loadPrimaryKeys(table *models.Table) error {
 	pkQuery := `
         SELECT column_name
         FROM information_schema.key_column_usage
@@ -1584,21 +1711,24 @@ func (postgresDbService *PostgresDbService) loadTableDetails(table *models.Table
 	for i := range table.Columns {
 		table.Columns[i].IsPrimaryKey = pkMap[table.Columns[i].Name]
 	}
+	return nil
+}
 
-	// Load foreign keys
+// loadForeignKeys loads foreign key information for a table
+func (postgresDbService *PostgresDbService) loadForeignKeys(table *models.Table) error {
 	fkQuery := `
-        SELECT 
+        SELECT
             kcu.column_name,
             ccu.table_name AS referenced_table_name,
             ccu.column_name AS referenced_column_name,
             tc.constraint_name
         FROM information_schema.table_constraints tc
-        JOIN information_schema.key_column_usage kcu 
+        JOIN information_schema.key_column_usage kcu
             ON tc.constraint_name = kcu.constraint_name
-        JOIN information_schema.constraint_column_usage ccu 
+        JOIN information_schema.constraint_column_usage ccu
             ON ccu.constraint_name = tc.constraint_name
-        WHERE tc.constraint_type = 'FOREIGN KEY' 
-            AND tc.table_schema = $1 
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+            AND tc.table_schema = $1
             AND tc.table_name = $2
     `
 
@@ -1630,7 +1760,19 @@ func (postgresDbService *PostgresDbService) loadTableDetails(table *models.Table
 		return fmt.Errorf("error iterating foreign keys for table %s: %w", table.Name, err)
 	}
 	table.ForeignKeys = foreignKeys
+	return nil
+}
 
+func (postgresDbService *PostgresDbService) loadTableDetails(table *models.Table) error {
+	if err := postgresDbService.loadColumns(table); err != nil {
+		return err
+	}
+	if err := postgresDbService.loadPrimaryKeys(table); err != nil {
+		return err
+	}
+	if err := postgresDbService.loadForeignKeys(table); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -1720,7 +1862,7 @@ func (postgresDbService *PostgresDbService) BulkInsert(tableName string, records
 
 	cols, err := rows.Columns()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get columns: %w", err)
+		return nil, fmt.Errorf(failedToGetColumnsErrFmt, err)
 	}
 
 	for rows.Next() {
@@ -1731,7 +1873,7 @@ func (postgresDbService *PostgresDbService) BulkInsert(tableName string, records
 		}
 
 		if err := rows.Scan(valuePtrs...); err != nil {
-			return nil, fmt.Errorf("failed to scan row: %w", err)
+			return nil, fmt.Errorf(failedToScanRowErrFmt, err)
 		}
 
 		// Use parseRow to process the row
@@ -1805,7 +1947,7 @@ func (postgresDbService *PostgresDbService) Upsert(tableName string, data map[st
 
 	cols, err := rows.Columns()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get columns: %w", err)
+		return nil, fmt.Errorf(failedToGetColumnsErrFmt, err)
 	}
 
 	values := make([]interface{}, len(cols))
@@ -1815,7 +1957,7 @@ func (postgresDbService *PostgresDbService) Upsert(tableName string, data map[st
 	}
 
 	if err := rows.Scan(valuePtrs...); err != nil {
-		return nil, fmt.Errorf("failed to scan row: %w", err)
+		return nil, fmt.Errorf(failedToScanRowErrFmt, err)
 	}
 
 	result := make(map[string]interface{})
@@ -1945,7 +2087,7 @@ func (postgresDbService *PostgresDbService) GetMigrationHistory() ([]map[string]
 
 	cols, err := rows.Columns()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get columns: %w", err)
+		return nil, fmt.Errorf(failedToGetColumnsErrFmt, err)
 	}
 
 	var migrations []map[string]interface{}
@@ -2175,17 +2317,17 @@ func (r *PostgresDbService) DropRelationshipConstraints(relationship *models.Rel
 	if relationship.Type == models.RelationshipManyToMany && relationship.JoinTable != nil {
 		// Drop source foreign key
 		sourceConstraint := fmt.Sprintf("fk_%s_%s", *relationship.JoinTable, relationship.SourceTable)
-		dropQuery1 := fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT IF EXISTS %s", *relationship.JoinTable, sourceConstraint)
+		dropQuery1 := fmt.Sprintf(dropConstraintQueryFmt, *relationship.JoinTable, sourceConstraint)
 		r.db.Exec(dropQuery1) // Ignore errors
 
 		// Drop target foreign key
 		targetConstraint := fmt.Sprintf("fk_%s_%s", *relationship.JoinTable, relationship.TargetTable)
-		dropQuery2 := fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT IF EXISTS %s", *relationship.JoinTable, targetConstraint)
+		dropQuery2 := fmt.Sprintf(dropConstraintQueryFmt, *relationship.JoinTable, targetConstraint)
 		r.db.Exec(dropQuery2) // Ignore errors
 	} else {
 		// For one-to-one and one-to-many, drop constraint on source table
 		constraintName := fmt.Sprintf("fk_%s_%s_%s", relationship.SourceTable, relationship.TargetTable, relationship.Name)
-		dropQuery := fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT IF EXISTS %s", relationship.SourceTable, constraintName)
+		dropQuery := fmt.Sprintf(dropConstraintQueryFmt, relationship.SourceTable, constraintName)
 		r.db.Exec(dropQuery) // Ignore errors
 	}
 
@@ -2314,6 +2456,64 @@ func (r *PostgresDbService) SetOneToManyRelations(relationship *models.Relations
 	return nil
 }
 
+// buildManyToManyInsertQuery builds the INSERT query and parameters for many-to-many relations
+func (r *PostgresDbService) buildManyToManyInsertQuery(relationship *models.RelationshipDefinition, sourceID interface{}, targetID interface{}, data map[string]interface{}) (string, []interface{}) {
+	// Prepare columns and values
+	columns := []string{*relationship.SourceJoinColumn, *relationship.TargetJoinColumn}
+	values := []interface{}{sourceID, targetID}
+	placeholders := []string{"$1", "$2"}
+	argCount := 3
+
+	// Add additional data if provided
+	for key, value := range data {
+		if key != *relationship.SourceJoinColumn && key != *relationship.TargetJoinColumn {
+			columns = append(columns, key)
+			values = append(values, value)
+			placeholders = append(placeholders, fmt.Sprintf("$%d", argCount))
+			argCount++
+		}
+	}
+
+	query := fmt.Sprintf(
+		"INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s, %s) DO UPDATE SET updated_at = CURRENT_TIMESTAMP RETURNING *",
+		*relationship.JoinTable,
+		strings.Join(columns, ", "),
+		strings.Join(placeholders, ", "),
+		*relationship.SourceJoinColumn,
+		*relationship.TargetJoinColumn,
+	)
+
+	return query, values
+}
+
+// processManyToManyResult processes a single result row from many-to-many insert
+func (r *PostgresDbService) processManyToManyResult(rows *sql.Rows) (map[string]interface{}, error) {
+	if !rows.Next() {
+		return nil, nil
+	}
+
+	cols, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+
+	vals := make([]interface{}, len(cols))
+	valPtrs := make([]interface{}, len(cols))
+	for i := range vals {
+		valPtrs[i] = &vals[i]
+	}
+
+	if err := rows.Scan(valPtrs...); err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]interface{})
+	for i, col := range cols {
+		result[col] = vals[i]
+	}
+	return result, nil
+}
+
 func (r *PostgresDbService) SetManyToManyRelations(relationship *models.RelationshipDefinition, sourceID interface{}, targetIDs []interface{}, data map[string]interface{}) ([]map[string]interface{}, error) {
 	if len(targetIDs) == 0 {
 		return []map[string]interface{}{}, nil
@@ -2322,51 +2522,22 @@ func (r *PostgresDbService) SetManyToManyRelations(relationship *models.Relation
 	var results []map[string]interface{}
 
 	for _, targetID := range targetIDs {
-		// Prepare columns and values
-		columns := []string{*relationship.SourceJoinColumn, *relationship.TargetJoinColumn}
-		values := []interface{}{sourceID, targetID}
-		placeholders := []string{"$1", "$2"}
-		argCount := 3
+		// Build query and parameters
+		query, values := r.buildManyToManyInsertQuery(relationship, sourceID, targetID, data)
 
-		// Add additional data if provided
-		for key, value := range data {
-			if key != *relationship.SourceJoinColumn && key != *relationship.TargetJoinColumn {
-				columns = append(columns, key)
-				values = append(values, value)
-				placeholders = append(placeholders, fmt.Sprintf("$%d", argCount))
-				argCount++
-			}
-		}
-
-		query := fmt.Sprintf(
-			"INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s, %s) DO UPDATE SET updated_at = CURRENT_TIMESTAMP RETURNING *",
-			*relationship.JoinTable,
-			strings.Join(columns, ", "),
-			strings.Join(placeholders, ", "),
-			*relationship.SourceJoinColumn,
-			*relationship.TargetJoinColumn,
-		)
-
+		// Execute query
 		rows, err := r.db.Query(query, values...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to insert into join table %s: %w", *relationship.JoinTable, err)
 		}
 		defer rows.Close()
 
-		if rows.Next() {
-			cols, _ := rows.Columns()
-			vals := make([]interface{}, len(cols))
-			valPtrs := make([]interface{}, len(cols))
-			for i := range vals {
-				valPtrs[i] = &vals[i]
-			}
-
-			rows.Scan(valPtrs...)
-
-			result := make(map[string]interface{})
-			for i, col := range cols {
-				result[col] = vals[i]
-			}
+		// Process result
+		result, err := r.processManyToManyResult(rows)
+		if err != nil {
+			return nil, fmt.Errorf("failed to process result for join table %s: %w", *relationship.JoinTable, err)
+		}
+		if result != nil {
 			results = append(results, result)
 		}
 	}
@@ -2438,47 +2609,44 @@ func (r *PostgresDbService) RemoveManyToManyRelations(relationship *models.Relat
 	return int(count), nil
 }
 
-func (r *PostgresDbService) GetRelationshipData(
-	ctx context.Context,
-	relationship *models.RelationshipDefinition,
-	sourceID string,
-	params models.QueryParams,
-) ([]map[string]interface{}, error) {
+// buildRelationshipBaseQuery builds the base SELECT query for different relationship types
+func (r *PostgresDbService) buildRelationshipBaseQuery(relationship *models.RelationshipDefinition, params models.QueryParams, argCounter int) (string, int) {
 	var query strings.Builder
-	var args []interface{}
-	argCounter := 1
+
+	query.WriteString("SELECT ")
+	if len(params.Select) > 0 {
+		query.WriteString(strings.Join(params.Select, ", "))
+	} else {
+		switch relationship.Type {
+		case models.RelationshipOneToOne, models.RelationshipOneToMany:
+			query.WriteString(fmt.Sprintf("%s.*", relationship.TargetTable))
+		case models.RelationshipManyToMany:
+			query.WriteString("t.*")
+		}
+	}
 
 	switch relationship.Type {
 	case models.RelationshipOneToOne, models.RelationshipOneToMany:
-		query.WriteString("SELECT ")
-		if len(params.Select) > 0 {
-			query.WriteString(strings.Join(params.Select, ", "))
-		} else {
-			query.WriteString(fmt.Sprintf("%s.*", relationship.TargetTable))
-		}
-
 		query.WriteString(fmt.Sprintf(" FROM %s WHERE %s = $%d",
 			relationship.TargetTable, relationship.TargetColumn, argCounter))
-		args = append(args, sourceID)
 		argCounter++
 
 	case models.RelationshipManyToMany:
-		query.WriteString("SELECT ")
-		if len(params.Select) > 0 {
-			query.WriteString(strings.Join(params.Select, ", "))
-		} else {
-			query.WriteString("t.*")
-		}
-
 		query.WriteString(fmt.Sprintf(
 			" FROM %s t INNER JOIN %s j ON t.%s = j.%s WHERE j.%s = $%d",
 			relationship.TargetTable, *relationship.JoinTable,
 			relationship.TargetColumn, *relationship.TargetJoinColumn,
 			*relationship.SourceJoinColumn, argCounter,
 		))
-		args = append(args, sourceID)
 		argCounter++
 	}
+
+	return query.String(), argCounter
+}
+
+// addQueryModifiers adds filters, ordering, limits, and offsets to a query
+func (r *PostgresDbService) addQueryModifiers(query *strings.Builder, params models.QueryParams, argCounter int) ([]interface{}, int) {
+	var args []interface{}
 
 	// Add filters
 	for _, filter := range params.Filters {
@@ -2506,6 +2674,29 @@ func (r *PostgresDbService) GetRelationshipData(
 		args = append(args, *params.Offset)
 	}
 
+	return args, argCounter
+}
+
+func (r *PostgresDbService) GetRelationshipData(
+	ctx context.Context,
+	relationship *models.RelationshipDefinition,
+	sourceID string,
+	params models.QueryParams,
+) ([]map[string]interface{}, error) {
+	var query strings.Builder
+	var args []interface{}
+	argCounter := 1
+
+	// Build base query
+	baseQuery, newArgCounter := r.buildRelationshipBaseQuery(relationship, params, argCounter)
+	query.WriteString(baseQuery)
+	args = append(args, sourceID) // Add sourceID as first argument
+	argCounter = newArgCounter
+
+	// Add query modifiers
+	modifierArgs, _ := r.addQueryModifiers(&query, params, argCounter)
+	args = append(args, modifierArgs...)
+
 	rows, err := r.db.QueryContext(ctx, query.String(), args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query: %w", err)
@@ -2514,7 +2705,7 @@ func (r *PostgresDbService) GetRelationshipData(
 
 	cols, err := rows.Columns()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get columns: %w", err)
+		return nil, fmt.Errorf(failedToGetColumnsErrFmt, err)
 	}
 
 	var data []map[string]interface{}
@@ -2526,7 +2717,7 @@ func (r *PostgresDbService) GetRelationshipData(
 		}
 
 		if err := rows.Scan(valuePtrs...); err != nil {
-			return nil, fmt.Errorf("failed to scan row: %w", err)
+			return nil, fmt.Errorf(failedToScanRowErrFmt, err)
 		}
 
 		row := make(map[string]interface{})
@@ -2544,15 +2735,14 @@ func (r *PostgresDbService) GetRelationshipData(
 	return data, nil
 }
 
-func (r *PostgresDbService) ExecuteFunction(ctx context.Context, name string, args map[string]interface{}) (any, error) {
-	if name == "" {
-		return nil, fmt.Errorf("function name cannot be empty")
-	}
+// argSpec represents a function argument specification
+type argSpec struct {
+	Name  string
+	Value interface{}
+}
 
-	type argSpec struct {
-		Name  string
-		Value interface{}
-	}
+// orderFunctionArgs orders function arguments with known parameters first
+func (r *PostgresDbService) orderFunctionArgs(args map[string]interface{}) []argSpec {
 	var argList []argSpec
 
 	knownOrder := []string{"schema_name", "source_table", "source_columns", "target_table"}
@@ -2568,7 +2758,11 @@ func (r *PostgresDbService) ExecuteFunction(ctx context.Context, name string, ar
 			argList = append(argList, argSpec{Name: k, Value: v})
 		}
 	}
+	return argList
+}
 
+// buildFunctionCallQuery builds the SQL query for calling a PostgreSQL function
+func (r *PostgresDbService) buildFunctionCallQuery(name string, argList []argSpec) (string, []interface{}) {
 	placeholders := make([]string, len(argList))
 	values := make([]interface{}, len(argList))
 	for i, arg := range argList {
@@ -2584,6 +2778,20 @@ func (r *PostgresDbService) ExecuteFunction(ctx context.Context, name string, ar
 		query = fmt.Sprintf("SELECT * FROM %s()", name)
 	}
 
+	return query, values
+}
+
+func (r *PostgresDbService) ExecuteFunction(ctx context.Context, name string, args map[string]interface{}) (any, error) {
+	if name == "" {
+		return nil, fmt.Errorf("function name cannot be empty")
+	}
+
+	// Order arguments
+	argList := r.orderFunctionArgs(args)
+
+	// Build function call query
+	query, values := r.buildFunctionCallQuery(name, argList)
+
 	rows, err := r.db.QueryContext(ctx, query, values...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute function: %w", err)
@@ -2592,7 +2800,7 @@ func (r *PostgresDbService) ExecuteFunction(ctx context.Context, name string, ar
 
 	cols, err := rows.Columns()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get columns: %w", err)
+		return nil, fmt.Errorf(failedToGetColumnsErrFmt, err)
 	}
 
 	var results []map[string]interface{}
@@ -2604,7 +2812,7 @@ func (r *PostgresDbService) ExecuteFunction(ctx context.Context, name string, ar
 		}
 
 		if err := rows.Scan(valuePtrs...); err != nil {
-			return nil, fmt.Errorf("failed to scan row: %w", err)
+			return nil, fmt.Errorf(failedToScanRowErrFmt, err)
 		}
 
 		row := r.parseRow(cols, values)

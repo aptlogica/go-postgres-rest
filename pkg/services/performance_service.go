@@ -20,37 +20,55 @@ func NewPerformanceService(repo interfaces.DatabaseRepo) servicesInterface.Perfo
 // CreateIndexes automatically creates indexes for frequently queried columns
 func (s *PerformanceService) CreateIndexes(tableName string) error {
 	// Get table information from repository
-	collections, err := s.repo.ListCollections("")
+	targetTable, err := s.findTargetTable(tableName)
 	if err != nil {
-		return fmt.Errorf("failed to get table information: %w", err)
-	}
-
-	// Find the specific table
-	var targetTable *models.Table
-	for _, collection := range collections {
-		if collection.Name == tableName {
-			targetTable = &collection
-			break
-		}
-	}
-
-	if targetTable == nil {
-		return fmt.Errorf("table %s not found", tableName)
+		return err
 	}
 
 	// Create indexes for foreign key columns
+	if err := s.createForeignKeyIndexes(tableName, targetTable); err != nil {
+		return err
+	}
+
+	// Create indexes for commonly filtered columns
+	if err := s.createCommonFilterIndexes(tableName, targetTable); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *PerformanceService) findTargetTable(tableName string) (*models.Table, error) {
+	collections, err := s.repo.ListCollections("")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get table information: %w", err)
+	}
+
+	for _, collection := range collections {
+		if collection.Name == tableName {
+			return &collection, nil
+		}
+	}
+
+	return nil, fmt.Errorf("table %s not found", tableName)
+}
+
+func (s *PerformanceService) createForeignKeyIndexes(tableName string, targetTable *models.Table) error {
 	for _, column := range targetTable.Columns {
-		// Create indexes for foreign key columns
-		if s.isForeignKeyColumn(column.Name, targetTable.ForeignKeys) {
+		if s.IsForeignKeyColumn(column.Name, targetTable.ForeignKeys) {
 			indexName := fmt.Sprintf("idx_%s_%s", tableName, column.Name)
 			err := s.repo.CreateIndex(tableName, indexName, column.Name)
 			if err != nil {
 				return fmt.Errorf("failed to create foreign key index: %w", err)
 			}
 		}
+	}
+	return nil
+}
 
-		// Create indexes for commonly filtered columns
-		if s.isCommonFilterColumn(column.Name) {
+func (s *PerformanceService) createCommonFilterIndexes(tableName string, targetTable *models.Table) error {
+	for _, column := range targetTable.Columns {
+		if s.IsCommonFilterColumn(column.Name) {
 			indexName := fmt.Sprintf("idx_%s_%s", tableName, column.Name)
 			err := s.repo.CreateIndex(tableName, indexName, column.Name)
 			if err != nil {
@@ -58,11 +76,10 @@ func (s *PerformanceService) CreateIndexes(tableName string) error {
 			}
 		}
 	}
-
 	return nil
 }
 
-func (s *PerformanceService) isForeignKeyColumn(columnName string, foreignKeys []models.ForeignKey) bool {
+func (s *PerformanceService) IsForeignKeyColumn(columnName string, foreignKeys []models.ForeignKey) bool {
 	for _, fk := range foreignKeys {
 		for _, col := range fk.Columns {
 			if col == columnName {
@@ -73,7 +90,7 @@ func (s *PerformanceService) isForeignKeyColumn(columnName string, foreignKeys [
 	return false
 }
 
-func (s *PerformanceService) isCommonFilterColumn(columnName string) bool {
+func (s *PerformanceService) IsCommonFilterColumn(columnName string) bool {
 	commonColumns := map[string]bool{
 		"status":     true,
 		"type":       true,

@@ -3,6 +3,7 @@ package postgres
 import (
 	"fmt"
 	"go-postgres-rest/pkg/config"
+	"strings"
 )
 
 // DSNBuilder defines the interface for building database connection strings
@@ -20,6 +21,14 @@ func NewPostgresDSNBuilder() DSNBuilder {
 
 // BuildDSN constructs a PostgreSQL connection string with validation
 func (pb *PostgresDSNBuilder) BuildDSN(cfg *config.DatabaseConfig) (string, error) {
+	if cfg == nil {
+		return "", fmt.Errorf("database config cannot be nil")
+	}
+
+	if url := strings.TrimSpace(cfg.URL); url != "" {
+		return url, nil
+	}
+
 	// Validate required inputs
 	if cfg.Host == "" {
 		return "", fmt.Errorf("host cannot be empty")
