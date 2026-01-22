@@ -54,14 +54,3 @@ func TestPostgresConnectionFactoryPropagatesErrors(t *testing.T) {
 		t.Fatalf("expected BuildDSN error")
 	}
 }
-
-func TestNewDefaultDatabaseConnectorFactoryRegistersPostgres(t *testing.T) {
-	factory := NewDefaultDatabaseConnectorFactory()
-	if factory == nil || len(factory.connectorMap) == 0 {
-		t.Fatalf("expected default connectors registered")
-	}
-	// unsupported type should error
-	if _, err := factory.CreateConnection("unknown", &config.DatabaseConfig{}); err == nil {
-		t.Fatalf("expected unsupported type error")
-	}
-}

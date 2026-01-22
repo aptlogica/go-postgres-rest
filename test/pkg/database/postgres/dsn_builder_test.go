@@ -25,6 +25,11 @@ func TestPostgresDSNBuilder(t *testing.T) {
 			cfg:         configpkg.DatabaseConfig{Host: "h", Port: 5432, Username: "u", Password: "p", DatabaseName: "db", SSLMode: "disable"},
 			expectedDSN: "host=h port=5432 user=u password=p dbname=db sslmode=disable",
 		},
+		{
+			name:        "success prefers url",
+			cfg:         configpkg.DatabaseConfig{URL: "postgresql://user:pass@localhost:5432/db?sslmode=disable"},
+			expectedDSN: "postgresql://user:pass@localhost:5432/db?sslmode=disable",
+		},
 	}
 
 	for _, tt := range tests {
