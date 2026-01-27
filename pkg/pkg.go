@@ -26,9 +26,9 @@ func NewDatabaseService() *DatabaseService {
 	return &DatabaseService{}
 }
 
-// allow tests to override factories
-var createConnectorFactory = database.NewDefaultDatabaseConnectorFactory
-var createRepository = database.NewRepository
+// allow tests to override Factories
+var CreateConnectorFactory = database.NewDefaultDatabaseConnectorFactory
+var CreateRepository = database.NewRepository
 
 func NewDatabaseServiceWithInit(cfg *config.Config) (*DatabaseService, error) {
 	if cfg == nil {
@@ -38,14 +38,14 @@ func NewDatabaseServiceWithInit(cfg *config.Config) (*DatabaseService, error) {
 	fmt.Println("Initializing database service...", cfg.Database.Driver, &cfg.Database)
 
 	// 1️⃣ Database connection
-	factory := createConnectorFactory()
+	factory := CreateConnectorFactory()
 	db, err := factory.CreateConnection(cfg.Database.Driver, &cfg.Database)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
 	// 2️⃣ Repository
-	repo, err := createRepository(cfg.Database.Driver, db)
+	repo, err := CreateRepository(cfg.Database.Driver, db)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create repository: %w", err)
 	}

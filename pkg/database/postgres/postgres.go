@@ -10,8 +10,8 @@ import (
 )
 
 // allow tests to stub sql.Open/Ping
-var openDB = sql.Open
-var pingDB = func(db *sql.DB) error { return db.Ping() }
+var OpenDB = sql.Open
+var PingDB = func(db *sql.DB) error { return db.Ping() }
 
 // ConnetPostgres creates a DSN string for Postgres using the provided config.
 //
@@ -27,7 +27,7 @@ func Connect(cfg *config.DatabaseConfig) (interfaces.DB, error) {
 		cfg.SSLMode,
 	)
 
-	db, err := openDB("postgres", dsn)
+	db, err := OpenDB("postgres", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database connection: %w", err)
 	}
@@ -36,7 +36,7 @@ func Connect(cfg *config.DatabaseConfig) (interfaces.DB, error) {
 	db.SetMaxIdleConns(cfg.MaxIdleConns)
 	db.SetConnMaxLifetime(cfg.ConnMaxLifetime)
 
-	if err := pingDB(db); err != nil {
+	if err := PingDB(db); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 

@@ -15,25 +15,25 @@ type ConnectionFactory interface {
 // DatabaseConnectorFactory manages multiple database connector implementations
 // using a registry pattern for extensibility
 type DatabaseConnectorFactory struct {
-	connectorMap map[string]ConnectionFactory
+	ConnectorMap map[string]ConnectionFactory
 }
 
 // NewDatabaseConnectorFactory creates a new database connector factory
 func NewDatabaseConnectorFactory() *DatabaseConnectorFactory {
 	return &DatabaseConnectorFactory{
-		connectorMap: make(map[string]ConnectionFactory),
+		ConnectorMap: make(map[string]ConnectionFactory),
 	}
 }
 
 // RegisterConnector registers a connection factory for a specific database type
 // This allows extending the factory with new database types without modifying factory code
 func (dcf *DatabaseConnectorFactory) RegisterConnector(dbType string, connector ConnectionFactory) {
-	dcf.connectorMap[dbType] = connector
+	dcf.ConnectorMap[dbType] = connector
 }
 
 // CreateConnection creates a database connection using the registered connector for the specified type
 func (dcf *DatabaseConnectorFactory) CreateConnection(dbType string, cfg *config.DatabaseConfig) (interfaces.DB, error) {
-	connector, exists := dcf.connectorMap[dbType]
+	connector, exists := dcf.ConnectorMap[dbType]
 	if !exists {
 		return nil, fmt.Errorf("unsupported database type: %s", dbType)
 	}

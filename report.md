@@ -41,10 +41,10 @@ Updated on 2026-01-19 after refactoring multiple functions to reduce cognitive c
   - `failedToGetColumnsErrFmt`: "failed to get columns: %w" (8 occurrences)
   - `failedToScanRowErrFmt`: "failed to scan row: %w" (7 occurrences)
   - `dropConstraintQueryFmt`: "ALTER TABLE %s DROP CONSTRAINT IF EXISTS %s" (3 occurrences)
-  - `selectKeyword`: "SELECT " (1 occurrence in buildSelectClause)
+  - `selectKeyword`: "SELECT " (1 occurrence in BuildSelectClause)
 - Refactored `ValidateQualifiedTableName` in `pkg/database/postgres/repo.go` to reduce cognitive complexity from 16 to below 15 by extracting helper functions:
-  - `splitQualifiedName`: Handles quoted identifier parsing logic
-  - `validateQualifiedNameParts`: Validates the structure of split parts
+  - `SplitQualifiedName`: Handles quoted identifier parsing logic
+  - `ValidateQualifiedNameParts`: Validates the structure of split parts
   - `validateSchemaTable`: Validates schema and table components
 - Added comprehensive unit tests for `ValidateQualifiedTableName` and helper functions covering quoted identifier edge cases, unmatched quotes, and error message validation.
 

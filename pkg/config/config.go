@@ -31,7 +31,7 @@ type DatabaseConfig struct {
 
 // ─── Helpers ──────────────────────────────
 
-func parseInt(value string, defaultValue int) int {
+func ParseInt(value string, defaultValue int) int {
 	if value == "" {
 		return defaultValue
 	}
@@ -42,7 +42,7 @@ func parseInt(value string, defaultValue int) int {
 	return v
 }
 
-func parseDuration(value string, defaultValue time.Duration) time.Duration {
+func ParseDuration(value string, defaultValue time.Duration) time.Duration {
 	if value == "" {
 		return defaultValue
 	}
@@ -62,16 +62,16 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		Database: DatabaseConfig{
 			Host:            os.Getenv("DATABASE_HOST"),
-			Port:            parseInt(os.Getenv("DATABASE_PORT"), 5432),
+			Port:            ParseInt(os.Getenv("DATABASE_PORT"), 5432),
 			Username:        os.Getenv("DATABASE_USER"),
 			Password:        os.Getenv("DATABASE_PASSWORD"),
 			DatabaseName:    os.Getenv("DATABASE_NAME"),
 			URL:             os.Getenv("DATABASE_URL"),
 			Driver:          "postgres",
 			SSLMode:         os.Getenv("DATABASE_SSL_MODE"),
-			MaxOpenConns:    parseInt(os.Getenv("DATABASE_MAX_OPEN_CONNS"), 25),
-			MaxIdleConns:    parseInt(os.Getenv("DATABASE_MAX_IDLE_CONNS"), 5),
-			ConnMaxLifetime: parseDuration(os.Getenv("DATABASE_CONN_MAX_LIFETIME"), time.Hour),
+			MaxOpenConns:    ParseInt(os.Getenv("DATABASE_MAX_OPEN_CONNS"), 25),
+			MaxIdleConns:    ParseInt(os.Getenv("DATABASE_MAX_IDLE_CONNS"), 5),
+			ConnMaxLifetime: ParseDuration(os.Getenv("DATABASE_CONN_MAX_LIFETIME"), time.Hour),
 		},
 	}
 

@@ -41,41 +41,29 @@ func ConvertToString(value interface{}) string {
 	}
 }
 
-// ConvertToInt converts string to int with error handling
-func ConvertToInt(value string) (int, error) {
-	return strconv.Atoi(value)
-}
+// ConvertToInt converts string to int
+func ConvertToInt(value string) (int, error) { return strconv.Atoi(value) }
 
-// ConvertToFloat converts string to float64 with error handling
-func ConvertToFloat(value string) (float64, error) {
-	return strconv.ParseFloat(value, 64)
-}
+// ConvertToFloat converts string to float64
+func ConvertToFloat(value string) (float64, error) { return strconv.ParseFloat(value, 64) }
 
-// ConvertToBool converts string to bool with error handling
-func ConvertToBool(value string) (bool, error) {
-	return strconv.ParseBool(value)
-}
+// ConvertToBool converts string to bool
+func ConvertToBool(value string) (bool, error) { return strconv.ParseBool(value) }
 
 // ============================================================================
 // IsEmpty variants - NO REFLECTION for common types
 // ============================================================================
 
-// IsEmptyString checks if a string is empty - O(1) no reflection
-func IsEmptyString(s string) bool {
-	return len(s) == 0
-}
+// IsEmptyString checks if a string is empty - O(1)
+func IsEmptyString(s string) bool { return len(s) == 0 }
 
-// IsEmptySlice checks if a slice is empty - O(1) no reflection
-func IsEmptySlice[T any](s []T) bool {
-	return len(s) == 0
-}
+// IsEmptySlice checks if a slice is empty - O(1)
+func IsEmptySlice[T any](s []T) bool { return len(s) == 0 }
 
-// IsEmptyMap checks if a map is empty - O(1) no reflection
-func IsEmptyMap[K comparable, V any](m map[K]V) bool {
-	return len(m) == 0
-}
+// IsEmptyMap checks if a map is empty - O(1)
+func IsEmptyMap[K comparable, V any](m map[K]V) bool { return len(m) == 0 }
 
-// IsEmpty generic variant for comparable types - NO REFLECTION for zero value check
+// IsEmpty checks if a comparable value equals its zero value
 func IsEmpty[T comparable](v T) bool {
 	var zero T
 	return v == zero
@@ -112,25 +100,34 @@ func IsEmptyLegacy(value interface{}) bool {
 // Contains variants - NO REFLECTION for common types
 // ============================================================================
 
-// ContainsString checks if a string slice contains an element - O(n) no reflection
-func ContainsString(slice []string, element string) bool {
-	return Contains(slice, element)
-}
-
-// ContainsInt checks if an int slice contains an element - O(n) no reflection
-func ContainsInt(slice []int, element int) bool {
-	return Contains(slice, element)
-}
-
-// ContainsInt64 checks if an int64 slice contains an element - O(n) no reflection
-func ContainsInt64(slice []int64, element int64) bool {
-	return Contains(slice, element)
-}
-
-// Contains generic variant - NO REFLECTION for comparable types
+// Contains checks if a slice contains an element - O(n)
 func Contains[T comparable](slice []T, element T) bool {
 	for _, v := range slice {
 		if v == element {
+			return true
+		}
+	}
+	return false
+}
+
+// Type-specific wrappers for Contains (for backward compatibility)
+func ContainsString(slice []string, element string) bool { return Contains(slice, element) }
+func ContainsInt(slice []int, element int) bool          { return Contains(slice, element) }
+func ContainsInt64(slice []int64, element int64) bool    { return Contains(slice, element) }
+
+// validateSlice checks if the value is a slice and returns its reflect.Value
+func validateSlice(slice interface{}) (reflect.Value, bool) {
+	s := reflect.ValueOf(slice)
+	if s.Kind() != reflect.Slice {
+		return s, false
+	}
+	return s, true
+}
+
+// iterateSlice applies a function to each element of a reflected slice
+func iterateSlice(s reflect.Value, fn func(i int, elem interface{}) bool) bool {
+	for i := 0; i < s.Len(); i++ {
+		if fn(i, s.Index(i).Interface()) {
 			return true
 		}
 	}
@@ -141,71 +138,57 @@ func Contains[T comparable](slice []T, element T) bool {
 // This uses reflection for non-comparable types
 // DEPRECATED: Use typed variants (ContainsString, ContainsInt, Contains[T]) when possible
 func ContainsLegacy(slice interface{}, element interface{}) bool {
-	s := reflect.ValueOf(slice)
-	if s.Kind() != reflect.Slice {
+	s, ok := validateSlice(slice)
+	if !ok {
 		return false
 	}
-
-	for i := 0; i < s.Len(); i++ {
-		if reflect.DeepEqual(s.Index(i).Interface(), element) {
-			return true
-		}
-	}
-
-	return false
+	return iterateSlice(s, func(_ int, elem interface{}) bool {
+		return reflect.DeepEqual(elem, element)
+	})
 }
 
 // ============================================================================
 // RemoveDuplicates variants - NO REFLECTION for common types
 // ============================================================================
 
-// RemoveDuplicatesString removes duplicate strings from a slice - NO REFLECTION
-func RemoveDuplicatesString(slice []string) []string {
-	return RemoveDuplicates(slice)
-}
-
-// RemoveDuplicatesInt removes duplicate ints from a slice - NO REFLECTION
-func RemoveDuplicatesInt(slice []int) []int {
-	return RemoveDuplicates(slice)
-}
-
-// RemoveDuplicates generic variant - NO REFLECTION for comparable types
+// RemoveDuplicates removes duplicate elements from a slice
 func RemoveDuplicates[T comparable](slice []T) []T {
 	if len(slice) == 0 {
 		return slice
 	}
-
 	seen := make(map[T]bool)
 	result := make([]T, 0, len(slice))
-
 	for _, v := range slice {
 		if !seen[v] {
 			seen[v] = true
 			result = append(result, v)
 		}
 	}
-
 	return result
 }
+
+// Type-specific wrappers for RemoveDuplicates (for backward compatibility)
+func RemoveDuplicatesString(slice []string) []string { return RemoveDuplicates(slice) }
+func RemoveDuplicatesInt(slice []int) []int          { return RemoveDuplicates(slice) }
 
 // RemoveDuplicatesLegacy removes duplicate elements from a slice (fallback with reflection)
 // DEPRECATED: Use typed variants (RemoveDuplicatesString, RemoveDuplicatesInt, RemoveDuplicates[T]) when possible
 func RemoveDuplicatesLegacy(slice interface{}) interface{} {
-	s := reflect.ValueOf(slice)
-	if s.Kind() != reflect.Slice {
+	s, ok := validateSlice(slice)
+	if !ok {
 		return slice
 	}
 
 	seen := make(map[interface{}]bool)
 	result := reflect.MakeSlice(s.Type(), 0, s.Len())
 
-	for i := 0; i < s.Len(); i++ {
-		val := s.Index(i).Interface()
+	iterateSlice(s, func(i int, val interface{}) bool {
 		if !seen[val] {
 			seen[val] = true
 			result = reflect.Append(result, s.Index(i))
 		}
-	}
+		return false
+	})
 
 	return result.Interface()
 }
@@ -243,60 +226,45 @@ func FormatFileSize(bytes int64) string {
 // SliceToString variants - OPTIMIZED with pre-allocation
 // ============================================================================
 
-// SliceToStringStrings converts a string slice to a comma-separated string - NO REFLECTION
-func SliceToStringStrings(slice []string) string {
+// sliceToStringHelper converts slices to comma-separated strings
+func sliceToStringHelper[T any](slice []T, converter func(T) string) string {
 	if len(slice) == 0 {
 		return ""
 	}
-
-	// Use strings.Builder for efficient string concatenation
 	var sb strings.Builder
 	for i, v := range slice {
 		if i > 0 {
 			sb.WriteString(", ")
 		}
-		sb.WriteString(v)
+		sb.WriteString(converter(v))
 	}
 	return sb.String()
 }
 
-// SliceToStringInts converts an int slice to a comma-separated string - NO REFLECTION
+// Type-specific wrappers for SliceToString
+func SliceToStringStrings(slice []string) string {
+	return sliceToStringHelper(slice, func(s string) string { return s })
+}
 func SliceToStringInts(slice []int) string {
-	if len(slice) == 0 {
-		return ""
-	}
-
-	// Use strings.Builder for efficient string concatenation
-	var sb strings.Builder
-	for i, v := range slice {
-		if i > 0 {
-			sb.WriteString(", ")
-		}
-		sb.WriteString(fmt.Sprintf("%d", v))
-	}
-	return sb.String()
+	return sliceToStringHelper(slice, func(i int) string { return fmt.Sprintf("%d", i) })
 }
 
 // SliceToString converts a slice of any type to a comma-separated string
 // Uses reflection only as fallback - prefer typed variants when possible
 func SliceToString(slice interface{}) string {
-	s := reflect.ValueOf(slice)
-	if s.Kind() != reflect.Slice {
+	s, ok := validateSlice(slice)
+	if !ok || s.Len() == 0 {
 		return ""
 	}
 
-	if s.Len() == 0 {
-		return ""
-	}
-
-	// Use strings.Builder instead of repeated concatenation
 	var sb strings.Builder
-	for i := 0; i < s.Len(); i++ {
+	iterateSlice(s, func(i int, elem interface{}) bool {
 		if i > 0 {
 			sb.WriteString(", ")
 		}
-		sb.WriteString(ConvertToString(s.Index(i).Interface()))
-	}
+		sb.WriteString(ConvertToString(elem))
+		return false
+	})
 
 	return sb.String()
 }
@@ -319,35 +287,38 @@ func StringToSlice(str string) []string {
 // Map functions - keep reflection but improve
 // ============================================================================
 
-// MapKeys returns the keys of a map as a slice
-func MapKeys(m interface{}) []interface{} {
+// validateMap checks if the value is a map and returns its reflect.Value and keys
+func validateMap(m interface{}) (reflect.Value, []reflect.Value, bool) {
 	v := reflect.ValueOf(m)
 	if v.Kind() != reflect.Map {
+		return v, nil, false
+	}
+	return v, v.MapKeys(), true
+}
+
+// MapKeys returns the keys of a map as a slice
+func MapKeys(m interface{}) []interface{} {
+	_, keys, ok := validateMap(m)
+	if !ok {
 		return nil
 	}
-
-	keys := v.MapKeys()
 	result := make([]interface{}, len(keys))
 	for i, key := range keys {
 		result[i] = key.Interface()
 	}
-
 	return result
 }
 
 // MapValues returns the values of a map as a slice
 func MapValues(m interface{}) []interface{} {
-	v := reflect.ValueOf(m)
-	if v.Kind() != reflect.Map {
+	v, keys, ok := validateMap(m)
+	if !ok {
 		return nil
 	}
-
-	keys := v.MapKeys()
 	result := make([]interface{}, len(keys))
 	for i, key := range keys {
 		result[i] = v.MapIndex(key).Interface()
 	}
-
 	return result
 }
 
@@ -355,42 +326,39 @@ func MapValues(m interface{}) []interface{} {
 // Reverse variants - NO REFLECTION for common types
 // ============================================================================
 
-// ReverseStrings reverses a string slice in place - NO REFLECTION
-func ReverseStrings(slice []string) {
-	Reverse(slice)
-}
-
-// ReverseInts reverses an int slice in place - NO REFLECTION
-func ReverseInts(slice []int) {
-	Reverse(slice)
-}
-
-// ReverseInt64s reverses an int64 slice in place - NO REFLECTION
-func ReverseInt64s(slice []int64) {
-	Reverse(slice)
-}
-
-// Reverse generic variant - NO REFLECTION for types with comparable swap
+// Reverse reverses a slice in place
 func Reverse[T any](slice []T) {
 	for i, j := 0, len(slice)-1; i < j; i, j = i+1, j-1 {
 		slice[i], slice[j] = slice[j], slice[i]
 	}
 }
 
+// Type-specific wrappers for Reverse (for backward compatibility)
+func ReverseStrings(slice []string) { Reverse(slice) }
+func ReverseInts(slice []int)       { Reverse(slice) }
+func ReverseInt64s(slice []int64)   { Reverse(slice) }
+
 // ReverseLegacy reverses a slice in place (fallback with reflection)
 // DEPRECATED: Use typed variants (ReverseStrings, ReverseInts, Reverse[T]) when possible
 func ReverseLegacy(slice interface{}) {
-	s := reflect.ValueOf(slice)
-	if s.Kind() != reflect.Slice {
+	s, ok := validateSlice(slice)
+	if !ok {
 		return
 	}
-
 	for i, j := 0, s.Len()-1; i < j; i, j = i+1, j-1 {
 		vi, vj := s.Index(i), s.Index(j)
-		temp := vi.Interface()
+		temp := reflect.ValueOf(vi.Interface())
 		vi.Set(vj)
-		vj.Set(reflect.ValueOf(temp))
+		vj.Set(temp)
 	}
+}
+
+// formatTimeUnit is a helper function to format time units with singular/plural handling
+func formatTimeUnit(count int, unit string) string {
+	if count == 1 {
+		return fmt.Sprintf("1 %s ago", unit)
+	}
+	return fmt.Sprintf("%d %ss ago", count, unit)
 }
 
 // TimeAgo returns a human-readable time difference
@@ -402,40 +370,16 @@ func TimeAgo(t time.Time) string {
 	case diff < time.Minute:
 		return "just now"
 	case diff < time.Hour:
-		minutes := int(diff.Minutes())
-		if minutes == 1 {
-			return "1 minute ago"
-		}
-		return fmt.Sprintf("%d minutes ago", minutes)
+		return formatTimeUnit(int(diff.Minutes()), "minute")
 	case diff < 24*time.Hour:
-		hours := int(diff.Hours())
-		if hours == 1 {
-			return "1 hour ago"
-		}
-		return fmt.Sprintf("%d hours ago", hours)
+		return formatTimeUnit(int(diff.Hours()), "hour")
 	case diff < 7*24*time.Hour:
-		days := int(diff.Hours() / 24)
-		if days == 1 {
-			return "1 day ago"
-		}
-		return fmt.Sprintf("%d days ago", days)
+		return formatTimeUnit(int(diff.Hours()/24), "day")
 	case diff < 30*24*time.Hour:
-		weeks := int(diff.Hours() / (24 * 7))
-		if weeks == 1 {
-			return "1 week ago"
-		}
-		return fmt.Sprintf("%d weeks ago", weeks)
+		return formatTimeUnit(int(diff.Hours()/(24*7)), "week")
 	case diff < 365*24*time.Hour:
-		months := int(diff.Hours() / (24 * 30))
-		if months == 1 {
-			return "1 month ago"
-		}
-		return fmt.Sprintf("%d months ago", months)
+		return formatTimeUnit(int(diff.Hours()/(24*30)), "month")
 	default:
-		years := int(diff.Hours() / (24 * 365))
-		if years == 1 {
-			return "1 year ago"
-		}
-		return fmt.Sprintf("%d years ago", years)
+		return formatTimeUnit(int(diff.Hours()/(24*365)), "year")
 	}
 }

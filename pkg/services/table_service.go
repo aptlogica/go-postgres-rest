@@ -281,30 +281,18 @@ func (s *TableService) validateRenameColumnAction(data interface{}) error {
 func (s *TableService) BuildComplexQuery(tableName string, filters map[string]interface{}) (models.QueryParams, error) {
 	params := models.QueryParams{}
 
+	filterParsers := map[string]func(interface{}, *models.QueryParams) error{
+		"select":     ParseSelectFilter,
+		"joins":      ParseJoinsFilter,
+		"aggregates": ParseAggregatesFilter,
+		"group_by":   parseGroupByFilter,
+		"range":      parseRangeFilter,
+		"full_text":  ParseFullTextFilter,
+	}
+
 	for key, value := range filters {
-		switch key {
-		case "select":
-			if err := parseSelectFilter(value, &params); err != nil {
-				return params, err
-			}
-		case "joins":
-			if err := ParseJoinsFilter(value, &params); err != nil {
-				return params, err
-			}
-		case "aggregates":
-			if err := ParseAggregatesFilter(value, &params); err != nil {
-				return params, err
-			}
-		case "group_by":
-			if err := parseGroupByFilter(value, &params); err != nil {
-				return params, err
-			}
-		case "range":
-			if err := parseRangeFilter(value, &params); err != nil {
-				return params, err
-			}
-		case "full_text":
-			if err := ParseFullTextFilter(value, &params); err != nil {
+		if fn, ok := filterParsers[key]; ok {
+			if err := fn(value, &params); err != nil {
 				return params, err
 			}
 		}
@@ -313,7 +301,7 @@ func (s *TableService) BuildComplexQuery(tableName string, filters map[string]in
 	return params, nil
 }
 
-func parseSelectFilter(value interface{}, params *models.QueryParams) error {
+func ParseSelectFilter(value interface{}, params *models.QueryParams) error {
 	if selectStr, ok := value.(string); ok {
 		params.Select = strings.Split(selectStr, ",")
 		for i := range params.Select {
