@@ -16,26 +16,26 @@ type Connector interface {
 
 // PostgresConnectorImpl handles PostgreSQL connection creation
 type PostgresConnectorImpl struct {
-	maxOpenConns    int
-	maxIdleConns    int
-	connMaxLifetime time.Duration
+	MaxOpenConns    int
+	MaxIdleConns    int
+	ConnMaxLifetime time.Duration
 }
 
 // NewPostgresConnector creates a new PostgreSQL connector with default settings
 func NewPostgresConnector() Connector {
 	return &PostgresConnectorImpl{
-		maxOpenConns:    25,
-		maxIdleConns:    5,
-		connMaxLifetime: time.Hour,
+		MaxOpenConns:    25,
+		MaxIdleConns:    5,
+		ConnMaxLifetime: time.Hour,
 	}
 }
 
 // NewPostgresConnectorWithConfig creates a new PostgreSQL connector with custom settings
 func NewPostgresConnectorWithConfig(maxOpen, maxIdle int, maxLifetime time.Duration) Connector {
 	return &PostgresConnectorImpl{
-		maxOpenConns:    maxOpen,
-		maxIdleConns:    maxIdle,
-		connMaxLifetime: maxLifetime,
+		MaxOpenConns:    maxOpen,
+		MaxIdleConns:    maxIdle,
+		ConnMaxLifetime: maxLifetime,
 	}
 }
 
@@ -51,9 +51,9 @@ func (pc *PostgresConnectorImpl) Connect(dsn string) (interfaces.DB, error) {
 	}
 
 	// Configure connection pool
-	db.SetMaxOpenConns(pc.maxOpenConns)
-	db.SetMaxIdleConns(pc.maxIdleConns)
-	db.SetConnMaxLifetime(pc.connMaxLifetime)
+	db.SetMaxOpenConns(pc.MaxOpenConns)
+	db.SetMaxIdleConns(pc.MaxIdleConns)
+	db.SetConnMaxLifetime(pc.ConnMaxLifetime)
 
 	// Verify connection is actually working
 	if err := db.Ping(); err != nil {

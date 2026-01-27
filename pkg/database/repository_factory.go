@@ -14,25 +14,25 @@ type RepositoryFactory interface {
 // RepositoryProvider manages multiple repository factory implementations
 // using a registry pattern for extensibility
 type RepositoryProvider struct {
-	factories map[string]RepositoryFactory
+	Factories map[string]RepositoryFactory
 }
 
 // NewRepositoryProvider creates a new repository provider
 func NewRepositoryProvider() *RepositoryProvider {
 	return &RepositoryProvider{
-		factories: make(map[string]RepositoryFactory),
+		Factories: make(map[string]RepositoryFactory),
 	}
 }
 
 // RegisterFactory registers a repository factory for a specific database type
 // This allows extending the provider with new database types without modifying provider code
 func (rp *RepositoryProvider) RegisterFactory(dbType string, factory RepositoryFactory) {
-	rp.factories[dbType] = factory
+	rp.Factories[dbType] = factory
 }
 
 // CreateDatabaseRepository creates a repository using the registered factory for the specified type
 func (rp *RepositoryProvider) CreateDatabaseRepository(dbType string, db interfaces.DB) (interfaces.DatabaseRepo, error) {
-	factory, exists := rp.factories[dbType]
+	factory, exists := rp.Factories[dbType]
 	if !exists {
 		return nil, fmt.Errorf("unsupported database type: %s", dbType)
 	}

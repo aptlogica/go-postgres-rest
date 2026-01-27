@@ -282,7 +282,7 @@ func (s *TableService) BuildComplexQuery(tableName string, filters map[string]in
 	params := models.QueryParams{}
 
 	filterParsers := map[string]func(interface{}, *models.QueryParams) error{
-		"select":     parseSelectFilter,
+		"select":     ParseSelectFilter,
 		"joins":      ParseJoinsFilter,
 		"aggregates": ParseAggregatesFilter,
 		"group_by":   parseGroupByFilter,
@@ -301,7 +301,7 @@ func (s *TableService) BuildComplexQuery(tableName string, filters map[string]in
 	return params, nil
 }
 
-func parseSelectFilter(value interface{}, params *models.QueryParams) error {
+func ParseSelectFilter(value interface{}, params *models.QueryParams) error {
 	if selectStr, ok := value.(string); ok {
 		params.Select = strings.Split(selectStr, ",")
 		for i := range params.Select {

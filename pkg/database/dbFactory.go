@@ -11,23 +11,23 @@ import (
 // ============================================================================
 
 type Database struct {
-	factory *DatabaseConnectorFactory
+	Factory *DatabaseConnectorFactory
 }
 
 func NewDB() *Database {
 	// Create factory with default connectors
 	factory := NewDatabaseConnectorFactory()
 	factory.RegisterConnector("postgres", NewPostgresConnectionFactory(nil, nil))
-	return &Database{factory: factory}
+	return &Database{Factory: factory}
 }
 
 // Connect creates a database connection using the configured factory.
 // Kept for backwards compatibility; prefer DatabaseConnectorFactory directly.
 func (db *Database) Connect(dbType string, cfg *config.DatabaseConfig) (interfaces.DB, error) {
-	if db.factory == nil {
+	if db.Factory == nil {
 		factory := NewDatabaseConnectorFactory()
 		factory.RegisterConnector("postgres", NewPostgresConnectionFactory(nil, nil))
-		db.factory = factory
+		db.Factory = factory
 	}
-	return db.factory.CreateConnection(dbType, cfg)
+	return db.Factory.CreateConnection(dbType, cfg)
 }
