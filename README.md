@@ -211,7 +211,7 @@ func handleTableQuery(w http.ResponseWriter, r *http.Request) {
 
 ```bash
 # Step 1: Clone or add to your project
-git clone https://github.com/yourusername/go-postgres-rest.git
+git clone https://github.com/aptlogica/go-postgres-rest.git
 cd go-postgres-rest
 
 # Step 2: Install dependencies
@@ -238,10 +238,10 @@ Add to your existing Go project:
 
 ```bash
 # In your project directory
-go get github.com/yourusername/go-postgres-rest
+go get github.com/aptlogica/go-postgres-rest
 
 # Import in your code
-import "github.com/yourusername/go-postgres-rest/pkg"
+import "github.com/aptlogica/go-postgres-rest/pkg"
 ```
 
 ### Option 2: Clone and Build
@@ -250,7 +250,7 @@ For development or customization:
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/go-postgres-rest.git
+git clone https://github.com/aptlogica/go-postgres-rest.git
 cd go-postgres-rest
 
 # Install dependencies
@@ -269,7 +269,7 @@ For isolated development environment:
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/go-postgres-rest.git
+git clone https://github.com/aptlogica/go-postgres-rest.git
 cd go-postgres-rest
 
 # Copy environment file
@@ -325,8 +325,8 @@ package main
 
 import (
     "log"
-    "github.com/yourusername/go-postgres-rest/pkg"
-    "github.com/yourusername/go-postgres-rest/pkg/config"
+    "github.com/aptlogica/go-postgres-rest/pkg"
+    "github.com/aptlogica/go-postgres-rest/pkg/config"
 )
 
 func main() {
@@ -440,9 +440,9 @@ package main
 import (
     "fmt"
     "log"
-    "github.com/yourusername/go-postgres-rest/pkg"
-    "github.com/yourusername/go-postgres-rest/pkg/config"
-    "github.com/yourusername/go-postgres-rest/pkg/models"
+    "github.com/aptlogica/go-postgres-rest/pkg"
+    "github.com/aptlogica/go-postgres-rest/pkg/config"
+    "github.com/aptlogica/go-postgres-rest/pkg/models"
 )
 
 func main() {
@@ -1043,7 +1043,7 @@ package services_test
 import (
     "testing"
     "github.com/DATA-DOG/go-sqlmock"
-    "github.com/yourusername/go-postgres-rest/pkg/services"
+    "github.com/aptlogica/go-postgres-rest/pkg/services"
 )
 
 func TestTableService_CreateRecord(t *testing.T) {
@@ -1432,7 +1432,7 @@ params := models.QueryParams{
 A: Yes. It includes connection pooling, transaction management, error handling, comprehensive testing, and is used in production environments.
 
 **Q: How do I update to a new version?**
-A: If using as a Go module: `go get -u github.com/yourusername/go-postgres-rest`. If cloning: `git pull origin main`.
+A: If using as a Go module: `go get -u github.com/aptlogica/go-postgres-rest`. If cloning: `git pull origin main`.
 
 ## API Reference
 
@@ -1502,9 +1502,3 @@ See [LICENSE](LICENSE) file for full license text.
 
 ---
 
-**Made with ❤️ for the Go and PostgreSQL Community**
-
-**Links:**
-- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
-- [Go database/sql Package](https://pkg.go.dev/database/sql)
-- [Report Issues](https://github.com/yourusername/go-postgres-rest/issues)
