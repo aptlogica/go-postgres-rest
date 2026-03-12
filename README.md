@@ -1502,9 +1502,3 @@ See [LICENSE](LICENSE) file for full license text.
 
 ---
 
-**Made with ❤️ for the Go and PostgreSQL Community**
-
-**Links:**
-- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
-- [Go database/sql Package](https://pkg.go.dev/database/sql)
-- [Report Issues](https://github.com/aptlogica/go-postgres-rest/issues)
