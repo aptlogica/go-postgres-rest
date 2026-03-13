@@ -1,4 +1,4 @@
-module go-postgres-rest
+module github.com/aptlogica/go-postgres-rest
 
 go 1.23.0
 
