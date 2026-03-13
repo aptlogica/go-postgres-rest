@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://docs.serenibase.com
+    about: Check our documentation for usage guides and API references
+  - name: Discord Community
+    url: https://discord.gg/serenibase
+    about: Join our community for discussions and support
+  - name: Security Issues
+    url: https://github.com/aptlogica/go-postgres-rest/security/advisories/new
+    about: Report security vulnerabilities privately

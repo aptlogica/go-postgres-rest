@@ -1,2 +1,28 @@
+# OS
+.DS_Store
+Thumbs.db
+# IDE
+.vscode/
+.idea/
+# Env
 .env
-Makefile
+.env.local
+.env.*.local
+# Logs
+*.log
+# Coverage
+coverage.out
+coverage/
+*.lcov
+# Build
+bin/
+dist/
+build/
+out/
+*.exe
+*.test
+*.tgz
+# Node
+node_modules/
+# Go
+vendor/
