@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"go-postgres-rest/pkg/config"
-	postgres "go-postgres-rest/pkg/database/postgres"
+	"github.com/aptlogica/go-postgres-rest/pkg/config"
+	postgres "github.com/aptlogica/go-postgres-rest/pkg/database/postgres"
 )
 
 // Simple constructor coverage to ensure defaults are wired.

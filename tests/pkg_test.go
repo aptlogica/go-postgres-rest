@@ -12,12 +12,12 @@ import (
 	"fmt"
 	"testing"
 
-	pkg "go-postgres-rest/pkg"
+	pkg "github.com/aptlogica/go-postgres-rest/pkg"
 
-	"go-postgres-rest/pkg/config"
-	"go-postgres-rest/pkg/database"
-	"go-postgres-rest/pkg/database/interfaces"
-	"go-postgres-rest/pkg/models"
+	"github.com/aptlogica/go-postgres-rest/pkg/config"
+	"github.com/aptlogica/go-postgres-rest/pkg/database"
+	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
+	"github.com/aptlogica/go-postgres-rest/pkg/models"
 )
 
 func TestNewDatabaseService(t *testing.T) {

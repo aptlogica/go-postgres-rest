@@ -9,7 +9,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
-	"go-postgres-rest/pkg/models"
+	"github.com/aptlogica/go-postgres-rest/pkg/models"
 )
 
 // DBStats represents database statistics (define fields as needed)

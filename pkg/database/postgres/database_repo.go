@@ -6,7 +6,7 @@
 package postgres
 
 import (
-	"go-postgres-rest/pkg/database/interfaces"
+	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
 )
 
 // DatabaseRepoImpl is the composite implementation that embeds all repository interfaces

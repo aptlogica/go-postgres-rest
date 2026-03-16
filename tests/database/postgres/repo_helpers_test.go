@@ -10,10 +10,10 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
-	postgres "go-postgres-rest/pkg/database/postgres"
+	postgres "github.com/aptlogica/go-postgres-rest/pkg/database/postgres"
 	"testing"
 
-	"go-postgres-rest/pkg/models"
+	"github.com/aptlogica/go-postgres-rest/pkg/models"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"

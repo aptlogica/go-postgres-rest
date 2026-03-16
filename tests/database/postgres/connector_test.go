@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"go-postgres-rest/pkg/config"
-	postgres "go-postgres-rest/pkg/database/postgres"
+	"github.com/aptlogica/go-postgres-rest/pkg/config"
+	postgres "github.com/aptlogica/go-postgres-rest/pkg/database/postgres"
 )
 
 func TestConnectFailsGracefully(t *testing.T) {

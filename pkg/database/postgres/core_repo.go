@@ -8,7 +8,7 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"go-postgres-rest/pkg/models"
+	"github.com/aptlogica/go-postgres-rest/pkg/models"
 )
 
 // CoreRepoImpl implements CoreRepo interface

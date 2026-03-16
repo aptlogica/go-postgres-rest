@@ -8,8 +8,8 @@ package services
 import (
 	"fmt"
 
-	"go-postgres-rest/pkg/database/interfaces"
-	servicesInterface "go-postgres-rest/pkg/services/interfaces"
+	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
+	servicesInterface "github.com/aptlogica/go-postgres-rest/pkg/services/interfaces"
 )
 
 type BulkService struct {

@@ -6,8 +6,8 @@
 package database
 
 import (
-	"go-postgres-rest/pkg/config"
-	"go-postgres-rest/pkg/database/interfaces"
+	"github.com/aptlogica/go-postgres-rest/pkg/config"
+	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
 )
 
 // ============================================================================

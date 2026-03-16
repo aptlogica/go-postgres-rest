@@ -8,7 +8,7 @@ package postgres_test
 import (
 	"context"
 	"database/sql/driver"
-	"go-postgres-rest/pkg/database/postgres"
+	"github.com/aptlogica/go-postgres-rest/pkg/database/postgres"
 	"strings"
 	"testing"
 

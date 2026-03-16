@@ -10,12 +10,12 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
-	pkg "go-postgres-rest/pkg/database"
+	pkg "github.com/aptlogica/go-postgres-rest/pkg/database"
 	"testing"
 
-	configpkg "go-postgres-rest/pkg/config"
-	interfacespkg "go-postgres-rest/pkg/database/interfaces"
-	postgrespkg "go-postgres-rest/pkg/database/postgres"
+	configpkg "github.com/aptlogica/go-postgres-rest/pkg/config"
+	interfacespkg "github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
+	postgrespkg "github.com/aptlogica/go-postgres-rest/pkg/database/postgres"
 )
 
 type mockDSNBuilder struct {

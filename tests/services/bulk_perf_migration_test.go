@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"go-postgres-rest/pkg/models"
-	services "go-postgres-rest/pkg/services"
+	"github.com/aptlogica/go-postgres-rest/pkg/models"
+	services "github.com/aptlogica/go-postgres-rest/pkg/services"
 )
 
 // Reuse FakeRepo from service_test.go via callbacks to drive behaviors.

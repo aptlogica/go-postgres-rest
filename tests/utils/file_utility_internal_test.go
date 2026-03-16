@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	utils "go-postgres-rest/pkg/utils"
+	utils "github.com/aptlogica/go-postgres-rest/pkg/utils"
 )
 
 func TestFileUtilities(t *testing.T) {

@@ -9,10 +9,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	"go-postgres-rest/pkg/database/interfaces"
+	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
 	"time"
 
-	servicesInterface "go-postgres-rest/pkg/services/interfaces"
+	servicesInterface "github.com/aptlogica/go-postgres-rest/pkg/services/interfaces"
 )
 
 type MigrationService struct {

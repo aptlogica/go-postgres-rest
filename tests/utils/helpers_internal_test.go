@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	utils "go-postgres-rest/pkg/utils"
+	utils "github.com/aptlogica/go-postgres-rest/pkg/utils"
 )
 
 // These tests live alongside the utils package to ensure coverage is reported for core helpers.

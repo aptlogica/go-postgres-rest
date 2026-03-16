@@ -7,7 +7,7 @@ package postgres
 
 import (
 	"context"
-	"go-postgres-rest/pkg/models"
+	"github.com/aptlogica/go-postgres-rest/pkg/models"
 )
 
 // RelationshipRepoImpl implements RelationshipRepo interface

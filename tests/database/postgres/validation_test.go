@@ -7,7 +7,7 @@ package postgres_test
 
 import (
 	"fmt"
-	postgres "go-postgres-rest/pkg/database/postgres"
+	postgres "github.com/aptlogica/go-postgres-rest/pkg/database/postgres"
 	"reflect"
 	"testing"
 )

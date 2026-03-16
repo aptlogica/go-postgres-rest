@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"go-postgres-rest/pkg/models"
-	services "go-postgres-rest/pkg/services"
+	"github.com/aptlogica/go-postgres-rest/pkg/models"
+	services "github.com/aptlogica/go-postgres-rest/pkg/services"
 )
 
 // Direct coverage hits for bulk/performance/migration services.

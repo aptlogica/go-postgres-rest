@@ -6,7 +6,7 @@
 package postgres_test
 
 import (
-	"go-postgres-rest/pkg/database/postgres"
+	"github.com/aptlogica/go-postgres-rest/pkg/database/postgres"
 	"testing"
 )
 

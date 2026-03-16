@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	utils "go-postgres-rest/pkg/utils"
+	utils "github.com/aptlogica/go-postgres-rest/pkg/utils"
 )
 
 // Additional edge-case coverage that complements helpers_internal_test.

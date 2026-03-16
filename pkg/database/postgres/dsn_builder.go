@@ -7,7 +7,7 @@ package postgres
 
 import (
 	"fmt"
-	"go-postgres-rest/pkg/config"
+	"github.com/aptlogica/go-postgres-rest/pkg/config"
 	"strings"
 )
 

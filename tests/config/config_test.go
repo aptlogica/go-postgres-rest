@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	config "go-postgres-rest/pkg/config"
+	config "github.com/aptlogica/go-postgres-rest/pkg/config"
 )
 
 func TestParseIntAndDuration(t *testing.T) {

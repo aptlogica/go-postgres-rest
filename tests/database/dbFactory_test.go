@@ -10,11 +10,11 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
-	pkg "go-postgres-rest/pkg/database"
+	pkg "github.com/aptlogica/go-postgres-rest/pkg/database"
 	"testing"
 
-	"go-postgres-rest/pkg/config"
-	"go-postgres-rest/pkg/database/interfaces"
+	"github.com/aptlogica/go-postgres-rest/pkg/config"
+	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
 )
 
 type stubConnFactory struct {

@@ -6,10 +6,10 @@
 package database_test
 
 import (
-	pkg "go-postgres-rest/pkg/database"
+	pkg "github.com/aptlogica/go-postgres-rest/pkg/database"
 	"testing"
 
-	"go-postgres-rest/pkg/database/interfaces"
+	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
 )
 
 func TestNewRepositoryUnsupportedType(t *testing.T) {

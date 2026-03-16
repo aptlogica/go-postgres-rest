@@ -20,12 +20,12 @@ package pkg
 import (
 	"errors"
 	"fmt"
-	"go-postgres-rest/pkg/config"
-	"go-postgres-rest/pkg/database"
-	"go-postgres-rest/pkg/database/interfaces"
-	"go-postgres-rest/pkg/services"
+	"github.com/aptlogica/go-postgres-rest/pkg/config"
+	"github.com/aptlogica/go-postgres-rest/pkg/database"
+	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
+	"github.com/aptlogica/go-postgres-rest/pkg/services"
 
-	servicesInterface "go-postgres-rest/pkg/services/interfaces"
+	servicesInterface "github.com/aptlogica/go-postgres-rest/pkg/services/interfaces"
 )
 
 type DatabaseService struct {

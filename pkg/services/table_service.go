@@ -8,12 +8,12 @@ package services
 import (
 	"context"
 	"fmt"
-	"go-postgres-rest/pkg/models"
+	"github.com/aptlogica/go-postgres-rest/pkg/models"
 	"strings"
 
-	"go-postgres-rest/pkg/database/interfaces"
+	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
 
-	servicesInterface "go-postgres-rest/pkg/services/interfaces"
+	servicesInterface "github.com/aptlogica/go-postgres-rest/pkg/services/interfaces"
 )
 
 type TableService struct {

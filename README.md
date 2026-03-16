@@ -9,7 +9,7 @@
 
 ## Overview
 
-**go-postgres-rest** is an enterprise-grade Postgres database API and Golang REST API toolkit that significantly reduces development overhead when building REST APIs backed by PostgreSQL. This comprehensive Postgres API generator and Golang Postgres toolkit eliminates the need for manual SQL query construction and database connection management by providing a high-level, type-safe service layer with advanced capabilities including query building, schema introspection, bulk operations, and automated performance optimization.
+**go-postgres-rest** is an enterprise-grade Postgres database API and Golang REST API toolkit that significantly reduces development overhead when building REST APIs backed by PostgreSQL. This comprehensive Postgres API generator and Golang Postgres toolkit eliminates the need for manual SQL query construction and database connection management by providing a high-level, type-safe service layer with advanced capabilities including query building, schema introspection, bulk operations, and automated performance optimization as a golang rest api postgres framework, an open source postgres rest stack, with golang postgres rest workflows, a golang database api layer, an auto generated rest api, and a postgres api toolkit for production services.
 
 ## Features
 
