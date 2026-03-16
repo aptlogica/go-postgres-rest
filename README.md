@@ -1,11 +1,33 @@
 # go-postgres-rest - PostgreSQL REST API Framework for Go
 
-> A comprehensive Postgres REST API framework and Golang backend framework for enterprise-grade applications. This production-ready Postgres API server and open source database API provides high-level abstractions for building scalable REST APIs with advanced query building, schema management, bulk operations, database migrations, and performance optimization.
+<p align="center">
+  <img src="https://img.shields.io/github/v/release/aptlogica/go-postgres-rest?style=for-the-badge&logo=github" alt="GitHub Release">
+  <img src="https://img.shields.io/badge/Go-1.21+-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go Version">
+  <img src="https://img.shields.io/badge/PostgreSQL-12+-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL">
+  <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="MIT License">
+  <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker">
+</p>
 
-[![Version](https://img.shields.io/badge/Version-1.0.0-blue.svg)](LICENSE)
-[![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat-square&logo=go)](https://golang.org)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Quality Gate Status](https://sonar.aptlogica.com/api/project_badges/measure?project=aptlogica_go-postgres-rest_3356bc40-4059-4939-8cce-5e86bba44a39&metric=alert_status&token=sqb_152d71a0f9a3621514372a3e4c87460e3059bbc2)](https://sonar.aptlogica.com/dashboard?id=aptlogica_go-postgres-rest_3356bc40-4059-4939-8cce-5e86bba44a39)
+<p align="center">
+  <a href="https://github.com/aptlogica/go-postgres-rest/actions/workflows/ci.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/aptlogica/go-postgres-rest/ci.yml?branch=main&style=flat-square&logo=github-actions" alt="Build Status">
+  </a>
+  <a href="https://sonar.aptlogica.com/dashboard?id=aptlogica_go-postgres-rest_3356bc40-4059-4939-8cce-5e86bba44a39">
+    <img src="https://sonar.aptlogica.com/api/project_badges/measure?project=aptlogica_go-postgres-rest_3356bc40-4059-4939-8cce-5e86bba44a39&metric=coverage&token=sqb_152d71a0f9a3621514372a3e4c87460e3059bbc2" alt="Coverage">
+  </a>
+  <a href="https://sonar.aptlogica.com/dashboard?id=aptlogica_go-postgres-rest_3356bc40-4059-4939-8cce-5e86bba44a39">
+    <img src="https://sonar.aptlogica.com/api/project_badges/measure?project=aptlogica_go-postgres-rest_3356bc40-4059-4939-8cce-5e86bba44a39&metric=alert_status&token=sqb_152d71a0f9a3621514372a3e4c87460e3059bbc2" alt="Quality Gate">
+  </a>
+  <a href="https://sonar.aptlogica.com/dashboard?id=aptlogica_go-postgres-rest_3356bc40-4059-4939-8cce-5e86bba44a39">
+    <img src="https://sonar.aptlogica.com/api/project_badges/measure?project=aptlogica_go-postgres-rest_3356bc40-4059-4939-8cce-5e86bba44a39&metric=security_rating&token=sqb_152d71a0f9a3621514372a3e4c87460e3059bbc2" alt="Security Rating">
+  </a>
+  <img src="https://img.shields.io/github/go-mod/go-version/aptlogica/go-postgres-rest?style=flat-square&logo=go" alt="Go Module Version">
+  <img src="https://img.shields.io/github/issues/aptlogica/go-postgres-rest?style=flat-square" alt="Issues">
+  <img src="https://img.shields.io/github/stars/aptlogica/go-postgres-rest?style=flat-square" alt="Stars">
+  <img src="https://img.shields.io/badge/PRs-Welcome-brightgreen?style=flat-square" alt="PRs Welcome">
+</p>
+
+> A comprehensive PostgreSQL REST API framework and Golang backend framework for enterprise-grade applications. This production-ready Postgres API server and open source database API provides high-level abstractions for building scalable REST APIs with advanced query building, schema management, bulk operations, database migrations, and performance optimization.
 
 ## Overview
 
