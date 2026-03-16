@@ -8,7 +8,7 @@ package postgres
 import (
 	"database/sql"
 	"fmt"
-	"go-postgres-rest/pkg/database/interfaces"
+	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
 	"time"
 
 	_ "github.com/lib/pq"

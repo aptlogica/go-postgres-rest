@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"go-postgres-rest/pkg/config"
-	"go-postgres-rest/pkg/models"
+	"github.com/aptlogica/go-postgres-rest/pkg/config"
+	"github.com/aptlogica/go-postgres-rest/pkg/models"
 )
 
 func mustNoErr(t *testing.T, err error, msg string) {

@@ -9,9 +9,9 @@ import (
 	"context"
 	"testing"
 
-	pkg "go-postgres-rest/pkg/database"
-	"go-postgres-rest/pkg/database/interfaces"
-	"go-postgres-rest/pkg/models"
+	pkg "github.com/aptlogica/go-postgres-rest/pkg/database"
+	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
+	"github.com/aptlogica/go-postgres-rest/pkg/models"
 )
 
 type stubDatabaseRepo struct{}

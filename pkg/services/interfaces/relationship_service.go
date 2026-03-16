@@ -6,7 +6,7 @@
 package interfaces
 
 import (
-	"go-postgres-rest/pkg/models"
+	"github.com/aptlogica/go-postgres-rest/pkg/models"
 )
 
 type RelationshipService interface {

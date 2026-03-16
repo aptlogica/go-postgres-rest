@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"testing"
 
-	"go-postgres-rest/pkg/config"
-	postgres "go-postgres-rest/pkg/database/postgres"
+	"github.com/aptlogica/go-postgres-rest/pkg/config"
+	postgres "github.com/aptlogica/go-postgres-rest/pkg/database/postgres"
 
 	"github.com/DATA-DOG/go-sqlmock"
 )

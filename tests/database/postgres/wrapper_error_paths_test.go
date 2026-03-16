@@ -8,11 +8,11 @@ package postgres_test
 import (
 	"context"
 	"errors"
-	postgres "go-postgres-rest/pkg/database/postgres"
+	postgres "github.com/aptlogica/go-postgres-rest/pkg/database/postgres"
 	"regexp"
 	"testing"
 
-	"go-postgres-rest/pkg/models"
+	"github.com/aptlogica/go-postgres-rest/pkg/models"
 
 	"github.com/DATA-DOG/go-sqlmock"
 )

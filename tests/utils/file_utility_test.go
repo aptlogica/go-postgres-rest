@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	utils "go-postgres-rest/pkg/utils"
+	utils "github.com/aptlogica/go-postgres-rest/pkg/utils"
 )
 
 // Additional coverage for error-free paths (existing core tests live in file_utility_internal_test.go).

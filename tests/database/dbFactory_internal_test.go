@@ -11,9 +11,9 @@ import (
 	"database/sql/driver"
 	"testing"
 
-	"go-postgres-rest/pkg/config"
-	pkg "go-postgres-rest/pkg/database"
-	"go-postgres-rest/pkg/database/interfaces"
+	"github.com/aptlogica/go-postgres-rest/pkg/config"
+	pkg "github.com/aptlogica/go-postgres-rest/pkg/database"
+	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
 )
 
 type stubDB struct{}

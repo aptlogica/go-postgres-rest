@@ -7,9 +7,9 @@ package database
 
 import (
 	"fmt"
-	"go-postgres-rest/pkg/config"
-	"go-postgres-rest/pkg/database/interfaces"
-	"go-postgres-rest/pkg/database/postgres"
+	"github.com/aptlogica/go-postgres-rest/pkg/config"
+	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
+	"github.com/aptlogica/go-postgres-rest/pkg/database/postgres"
 )
 
 // ConnectionFactory defines the interface for creating database connections

@@ -8,7 +8,7 @@ package postgres_test
 import (
 	"testing"
 
-	postgres "go-postgres-rest/pkg/database/postgres"
+	postgres "github.com/aptlogica/go-postgres-rest/pkg/database/postgres"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 )

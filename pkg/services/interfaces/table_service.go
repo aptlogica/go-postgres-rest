@@ -7,7 +7,7 @@ package interfaces
 
 import (
 	"context"
-	"go-postgres-rest/pkg/models"
+	"github.com/aptlogica/go-postgres-rest/pkg/models"
 )
 
 type Table interface {

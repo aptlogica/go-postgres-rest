@@ -7,7 +7,7 @@ package services_test
 
 import (
 	"context"
-	services "go-postgres-rest/pkg/services"
+	services "github.com/aptlogica/go-postgres-rest/pkg/services"
 	"strings"
 	"testing"
 )

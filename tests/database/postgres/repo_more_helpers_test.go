@@ -10,8 +10,8 @@ import (
 	"regexp"
 	"testing"
 
-	postgres "go-postgres-rest/pkg/database/postgres"
-	"go-postgres-rest/pkg/models"
+	postgres "github.com/aptlogica/go-postgres-rest/pkg/database/postgres"
+	"github.com/aptlogica/go-postgres-rest/pkg/models"
 
 	"github.com/DATA-DOG/go-sqlmock"
 )

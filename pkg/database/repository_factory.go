@@ -7,7 +7,7 @@ package database
 
 import (
 	"fmt"
-	"go-postgres-rest/pkg/database/interfaces"
+	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
 )
 
 // RepositoryFactory defines the interface for creating repository implementations

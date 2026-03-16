@@ -7,7 +7,7 @@ package postgres
 
 import (
 	"fmt"
-	"go-postgres-rest/pkg/models"
+	"github.com/aptlogica/go-postgres-rest/pkg/models"
 )
 
 // DDLRepoImpl implements DDLRepo interface

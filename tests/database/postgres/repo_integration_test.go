@@ -14,7 +14,7 @@ import (
 	"os"
 	"testing"
 
-	"go-postgres-rest/pkg/models"
+	"github.com/aptlogica/go-postgres-rest/pkg/models"
 
 	_ "github.com/lib/pq"
 )

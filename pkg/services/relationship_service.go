@@ -7,9 +7,9 @@ package services
 
 import (
 	"fmt"
-	"go-postgres-rest/pkg/database/interfaces"
-	"go-postgres-rest/pkg/models"
-	servicesInterface "go-postgres-rest/pkg/services/interfaces"
+	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
+	"github.com/aptlogica/go-postgres-rest/pkg/models"
+	servicesInterface "github.com/aptlogica/go-postgres-rest/pkg/services/interfaces"
 )
 
 type RelationshipService struct {

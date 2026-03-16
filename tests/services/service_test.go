@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"testing"
 
-	"go-postgres-rest/pkg/models"
-	services "go-postgres-rest/pkg/services"
+	"github.com/aptlogica/go-postgres-rest/pkg/models"
+	services "github.com/aptlogica/go-postgres-rest/pkg/services"
 )
 
 // FakeRepo is a lightweight stub implementing interfaces.DatabaseRepo for service tests.

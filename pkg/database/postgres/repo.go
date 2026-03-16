@@ -11,8 +11,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"go-postgres-rest/pkg/database/interfaces"
-	"go-postgres-rest/pkg/models"
+	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
+	"github.com/aptlogica/go-postgres-rest/pkg/models"
 	"reflect"
 	"regexp"
 

@@ -7,11 +7,11 @@ package services
 
 import (
 	"fmt"
-	"go-postgres-rest/pkg/database/interfaces"
-	"go-postgres-rest/pkg/models"
+	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
+	"github.com/aptlogica/go-postgres-rest/pkg/models"
 	"strings"
 
-	servicesInterface "go-postgres-rest/pkg/services/interfaces"
+	servicesInterface "github.com/aptlogica/go-postgres-rest/pkg/services/interfaces"
 )
 
 type PerformanceService struct {

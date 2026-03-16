@@ -9,11 +9,11 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
-	postgres "go-postgres-rest/pkg/database/postgres"
+	postgres "github.com/aptlogica/go-postgres-rest/pkg/database/postgres"
 	"testing"
 	"time"
 
-	"go-postgres-rest/pkg/config"
+	"github.com/aptlogica/go-postgres-rest/pkg/config"
 )
 
 // stubDB is defined in pkg/database tests; redefine here for isolation.
