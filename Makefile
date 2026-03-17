@@ -36,7 +36,20 @@ help: ## Show this help message
 	@echo 'Usage: make [target]'
 	@echo ''
 	@echo 'Available targets:'
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  ${BLUE}%-15s${NC} %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo '  build            - Build the application'
+	@echo '  build-all        - Build for multiple platforms'
+	@echo '  run              - Build and run the application'
+	@echo '  test             - Run all tests'
+	@echo '  test-coverage    - Run tests and show coverage'
+	@echo '  coverage         - Alias for test-coverage'
+	@echo '  coverage-func    - Show coverage by function'
+	@echo '  benchmark        - Run benchmarks'
+	@echo '  clean            - Clean build artifacts'
+	@echo '  deps             - Download and install dependencies'
+	@echo '  lint             - Run golangci-lint'
+	@echo '  lint-fix         - Run golangci-lint with auto-fix'
+	@echo '  format           - Format Go code'
+	@echo '  security         - Run security scan'
 
 # Build the application
 build: ## Build the application
