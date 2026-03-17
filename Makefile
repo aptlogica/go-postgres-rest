@@ -15,6 +15,9 @@ GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
 GOFMT=gofmt
+COVER_DIR=coverage
+COVER_PROFILE=$(COVER_DIR)/coverage.out
+COVER_HTML=$(COVER_DIR)/coverage.html
 
 # Colors for output
 RED=\033[0;31m
@@ -23,7 +26,7 @@ YELLOW=\033[0;33m
 BLUE=\033[0;34m
 NC=\033[0m # No Color
 
-.PHONY: help build test clean run deps lint format security docker-build docker-run
+.PHONY: help build test test-coverage coverage coverage-func clean run deps lint format security docker-build docker-run
 
 # Default target
 all: deps format lint test build
@@ -55,15 +58,20 @@ build-all: ## Build for multiple platforms (Linux, Darwin, Windows)
 # Run tests
 test: ## Run all tests
 	@echo "${GREEN}Running tests...${NC}"
-	@mkdir -p coverage
-	$(GOTEST) -v -race -coverprofile=coverage/coverage.out ./...
+	@mkdir -p $(COVER_DIR)
+	$(GOTEST) -v -race -coverprofile=$(COVER_PROFILE) -covermode=atomic ./...
 	@echo "${GREEN}Tests completed!${NC}"
 
 # Run tests with coverage
 test-coverage: test ## Run tests and show coverage
 	@echo "${GREEN}Generating coverage report...${NC}"
-	$(GOCMD) tool cover -html=coverage/coverage.out -o coverage/coverage.html
-	@echo "${BLUE}Coverage report generated: coverage/coverage.html${NC}"
+	$(GOCMD) tool cover -html=$(COVER_PROFILE) -o $(COVER_HTML)
+	@echo "${BLUE}Coverage report generated: $(COVER_HTML)${NC}"
+
+coverage: test-coverage ## Alias for test-coverage
+
+coverage-func: ## Show coverage by function
+	$(GOCMD) tool cover -func=$(COVER_PROFILE)
 
 # Run benchmarks
 benchmark: ## Run benchmarks
@@ -76,7 +84,7 @@ clean: ## Clean build artifacts
 	$(GOCLEAN)
 	rm -rf bin/
 	rm -rf dist/
-	rm -rf coverage
+	rm -rf $(COVER_DIR)
 	@echo "${GREEN}Clean completed!${NC}"
 
 # Run the application
