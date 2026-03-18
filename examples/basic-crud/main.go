@@ -10,7 +10,9 @@ import (
 	"strings"
 	"time"
 
-	postgres "github.com/aptlogica/go-postgres-rest"
+	"github.com/aptlogica/go-postgres-rest/pkg/config"
+	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
+	"github.com/aptlogica/go-postgres-rest/pkg/database/postgres"
 )
 
 // Constants for HTTP headers and error messages
@@ -30,31 +32,34 @@ type User struct {
 	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
 }
 
-var db *postgres.DB
+var db interfaces.DB
 
 func main() {
 	fmt.Println("=== Go PostgreSQL REST - Basic CRUD Example ===")
 
 	// Database configuration
-	config := postgres.Config{
-		Host:     getEnv("DB_HOST", "localhost"),
-		Port:     getEnv("DB_PORT", "5432"),
-		User:     getEnv("DB_USER", "postgres"),
-		Password: getEnv("DB_PASSWORD", "password"),
-		Database: getEnv("DB_NAME", "sereni_examples"),
-		SSLMode:  "disable",
+	cfg := config.DatabaseConfig{
+		Host:            getEnv("DB_HOST", "localhost"),
+		Port:            config.ParseInt(getEnv("DB_PORT", "5432"), 5432),
+		Username:        getEnv("DB_USER", "postgres"),
+		Password:        getEnv("DB_PASSWORD", "password"),
+		DatabaseName:    getEnv("DB_NAME", "sereni_examples"),
+		SSLMode:         "disable",
+		MaxOpenConns:    25,
+		MaxIdleConns:    5,
+		ConnMaxLifetime: time.Hour,
 	}
 
 	// Initialize database connection
 	var err error
-	db, err = postgres.NewConnection(config)
+	db, err = postgres.Connect(&cfg)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	defer db.Close()
 
-	fmt.Printf("✅ Connected to PostgreSQL: %s@%s:%s/%s\n",
-		config.User, config.Host, config.Port, config.Database)
+	fmt.Printf("✅ Connected to PostgreSQL: %s@%s:%d/%s\n",
+		cfg.Username, cfg.Host, cfg.Port, cfg.DatabaseName)
 
 	// Create tables if they don't exist
 	if err := createTables(); err != nil {
