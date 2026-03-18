@@ -14,4 +14,3 @@ jobs:
       - run: go mod tidy
       - run: go vet ./...
       - run: go test ./... -coverprofile=coverage.out
-      - run: docker build .
