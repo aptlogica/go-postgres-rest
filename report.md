@@ -1,5 +1,5 @@
-go test -coverpkg=./... -coverprofile=coverage/coverage.out ./...
-go tool cover -func="coverage/coverage.out"  # shows total and per-function
+go test -coverpkg=./... -coverprofile=coverage.out ./...
+go tool cover -func="coverage.out"  # shows total and per-function
 go test -json ./... | ForEach-Object { $_ | ConvertFrom-Json } |
 # Test & Coverage Report
 
@@ -7,7 +7,7 @@ Updated on 2026-01-19 after refactoring multiple functions to reduce cognitive c
 
 ## Summary
 - All tests pass (unit + integration).
-- Cover profile: `coverage/coverage.out` with `-coverpkg=./...`.
+- Cover profile: `coverage.out` with `-coverpkg=./...`.
 - Overall coverage: **87.5%** (up from 85.6%, +1.9% improvement).
 
 ## Coverage Snapshot (per package)
@@ -57,11 +57,11 @@ Updated on 2026-01-19 after refactoring multiple functions to reduce cognitive c
 ```powershell
 # From repo root
 go test ./... -count=1
-go test ./... -count=1 -coverpkg=./... -coverprofile=coverage/coverage.out
-go tool cover -func coverage/coverage.out  # shows total and per-function
+go test ./... -count=1 -coverpkg=./... -coverprofile=coverage.out
+go tool cover -func coverage.out  # shows total and per-function
 
-# Per-file coverage summary (uses coverage/coverage.out already generated)
-$files=@{}; Get-Content coverage/coverage.out | Select-Object -Skip 1 | ForEach-Object {
+# Per-file coverage summary (uses coverage.out already generated)
+$files=@{}; Get-Content coverage.out | Select-Object -Skip 1 | ForEach-Object {
     $parts = $_ -split ' ';
     if($parts.Length -lt 3){ return }
     $fileRange=$parts[0]; $stmts=[int]$parts[1]; $count=[int]$parts[2];

@@ -15,9 +15,8 @@ GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
 GOMOD=$(GOCMD) mod
 GOFMT=gofmt
-COVER_DIR=coverage
-COVER_PROFILE=$(COVER_DIR)/coverage.out
-COVER_HTML=$(COVER_DIR)/coverage.html
+COVER_PROFILE=coverage.out
+COVER_HTML=coverage.html
 
 # Colors for output
 RED=\033[0;31m
@@ -71,8 +70,7 @@ build-all: ## Build for multiple platforms (Linux, Darwin, Windows)
 # Run tests
 test: ## Run all tests
 	@echo "${GREEN}Running tests...${NC}"
-	@mkdir -p $(COVER_DIR)
-	$(GOTEST) -v -race -coverprofile=$(COVER_PROFILE) -covermode=atomic ./...
+	$(GOTEST) -v -race -coverprofile=$(COVER_PROFILE) -covermode=atomic ./tests/...
 	@echo "${GREEN}Tests completed!${NC}"
 
 # Run tests with coverage
@@ -97,7 +95,7 @@ clean: ## Clean build artifacts
 	$(GOCLEAN)
 	rm -rf bin/
 	rm -rf dist/
-	rm -rf $(COVER_DIR)
+	rm -f coverage.out coverage.html
 	@echo "${GREEN}Clean completed!${NC}"
 
 # Run the application

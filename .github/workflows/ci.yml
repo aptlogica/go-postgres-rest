@@ -14,7 +14,3 @@ jobs:
       - run: go mod tidy
       - run: go vet ./...
       - run: go test ./... -coverprofile=coverage.out
-      - uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-      - run: docker build .

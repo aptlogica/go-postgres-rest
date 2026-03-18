@@ -10,7 +10,17 @@ import (
 	"strings"
 	"time"
 
-	postgres "github.com/aptlogica/go-postgres-rest"
+	"github.com/aptlogica/go-postgres-rest/pkg/config"
+	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
+	"github.com/aptlogica/go-postgres-rest/pkg/database/postgres"
+)
+
+// Constants for HTTP headers and error messages
+const (
+	contentTypeHeader = "Content-Type"
+	contentTypeJSON   = "application/json"
+	dbErrorMessage    = "Database error: %v"
+	userNotFoundMsg   = "User not found"
 )
 
 // User represents our sample data model
@@ -22,31 +32,34 @@ type User struct {
 	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
 }
 
-var db *postgres.DB
+var db interfaces.DB
 
 func main() {
 	fmt.Println("=== Go PostgreSQL REST - Basic CRUD Example ===")
 
 	// Database configuration
-	config := postgres.Config{
-		Host:     getEnv("DB_HOST", "localhost"),
-		Port:     getEnv("DB_PORT", "5432"),
-		User:     getEnv("DB_USER", "postgres"),
-		Password: getEnv("DB_PASSWORD", "password"),
-		Database: getEnv("DB_NAME", "sereni_examples"),
-		SSLMode:  "disable",
+	cfg := config.DatabaseConfig{
+		Host:            getEnv("DB_HOST", "localhost"),
+		Port:            config.ParseInt(getEnv("DB_PORT", "5432"), 5432),
+		Username:        getEnv("DB_USER", "postgres"),
+		Password:        getEnv("DB_PASSWORD", "password"),
+		DatabaseName:    getEnv("DB_NAME", "sereni_examples"),
+		SSLMode:         "disable",
+		MaxOpenConns:    25,
+		MaxIdleConns:    5,
+		ConnMaxLifetime: time.Hour,
 	}
 
 	// Initialize database connection
 	var err error
-	db, err = postgres.NewConnection(config)
+	db, err = postgres.Connect(&cfg)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	defer db.Close()
 
-	fmt.Printf("✅ Connected to PostgreSQL: %s@%s:%s/%s\n",
-		config.User, config.Host, config.Port, config.Database)
+	fmt.Printf("✅ Connected to PostgreSQL: %s@%s:%d/%s\n",
+		cfg.Username, cfg.Host, cfg.Port, cfg.DatabaseName)
 
 	// Create tables if they don't exist
 	if err := createTables(); err != nil {
@@ -120,7 +133,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 		"version":   "1.0.0",
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(contentTypeHeader, contentTypeJSON)
 	json.NewEncoder(w).Encode(health)
 }
 
@@ -169,7 +182,7 @@ func getAllUsers(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := db.Query(query)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Database error: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf(dbErrorMessage, err), http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
@@ -189,7 +202,7 @@ func getAllUsers(w http.ResponseWriter, r *http.Request) {
 		users = []User{} // Return empty array instead of null
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(contentTypeHeader, contentTypeJSON)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"data":  users,
 		"count": len(users),
@@ -224,12 +237,12 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(err.Error(), "unique constraint") {
 			http.Error(w, "Email already exists", http.StatusConflict)
 		} else {
-			http.Error(w, fmt.Sprintf("Database error: %v", err), http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf(dbErrorMessage, err), http.StatusInternalServerError)
 		}
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(contentTypeHeader, contentTypeJSON)
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(user)
 }
@@ -245,14 +258,14 @@ func getUserByID(w http.ResponseWriter, r *http.Request, id int) {
 
 	if err != nil {
 		if err.Error() == "sql: no rows in result set" {
-			http.Error(w, "User not found", http.StatusNotFound)
+			http.Error(w, userNotFoundMsg, http.StatusNotFound)
 		} else {
-			http.Error(w, fmt.Sprintf("Database error: %v", err), http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf(dbErrorMessage, err), http.StatusInternalServerError)
 		}
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(contentTypeHeader, contentTypeJSON)
 	json.NewEncoder(w).Encode(user)
 }
 
@@ -272,7 +285,7 @@ func updateUser(w http.ResponseWriter, r *http.Request, id int) {
 		return
 	}
 	if !exists {
-		http.Error(w, "User not found", http.StatusNotFound)
+		http.Error(w, userNotFoundMsg, http.StatusNotFound)
 		return
 	}
 
@@ -292,12 +305,12 @@ func updateUser(w http.ResponseWriter, r *http.Request, id int) {
 		if strings.Contains(err.Error(), "unique constraint") {
 			http.Error(w, "Email already exists", http.StatusConflict)
 		} else {
-			http.Error(w, fmt.Sprintf("Database error: %v", err), http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf(dbErrorMessage, err), http.StatusInternalServerError)
 		}
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(contentTypeHeader, contentTypeJSON)
 	json.NewEncoder(w).Encode(user)
 }
 
@@ -305,17 +318,17 @@ func updateUser(w http.ResponseWriter, r *http.Request, id int) {
 func deleteUser(w http.ResponseWriter, r *http.Request, id int) {
 	result, err := db.Exec("DELETE FROM users WHERE id = $1", id)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Database error: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf(dbErrorMessage, err), http.StatusInternalServerError)
 		return
 	}
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
-		http.Error(w, "User not found", http.StatusNotFound)
+		http.Error(w, userNotFoundMsg, http.StatusNotFound)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set(contentTypeHeader, contentTypeJSON)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"message": "User deleted successfully",
 		"id":      id,
