@@ -9,6 +9,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+
 	"github.com/aptlogica/go-postgres-rest/pkg/models"
 )
 
@@ -41,6 +42,8 @@ type DMLRepo interface {
 	Insert(collection string, data map[string]any) (any, error)
 	Update(collection string, id any, data map[string]any) (any, error)
 	Delete(collection string, id any) error
+	UpdateByColumns(collection string, where models.ComplexFilter, data map[string]any) (any, error)
+	DeleteByColumns(collection string, where models.ComplexFilter) (int64, error)
 }
 
 // Bulk operations interface

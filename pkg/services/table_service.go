@@ -8,8 +8,9 @@ package services
 import (
 	"context"
 	"fmt"
-	"github.com/aptlogica/go-postgres-rest/pkg/models"
 	"strings"
+
+	"github.com/aptlogica/go-postgres-rest/pkg/models"
 
 	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
 
@@ -78,6 +79,29 @@ func (s *TableService) UpdateRecord(tableName string, id interface{}, data map[s
 
 func (s *TableService) DeleteRecord(tableName string, id interface{}) error {
 	return s.repo.Delete(tableName, id)
+}
+
+func (s *TableService) UpdateByColumns(tableName string, where models.ComplexFilter, data map[string]any) (map[string]interface{}, error) {
+	result, err := s.repo.UpdateByColumns(tableName, where, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update records in table %s: %w", tableName, err)
+	}
+	response, ok := result.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf(
+			"invalid result type from UpdateByColumns: got %T, expected map[string]interface{}",
+			result,
+		)
+	}
+	return response, nil
+}
+
+func (s *TableService) DeleteByColumns(tableName string, where models.ComplexFilter) (int64, error) {
+	rowsAffected, err := s.repo.DeleteByColumns(tableName, where)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete records from table %s: %w", tableName, err)
+	}
+	return rowsAffected, nil
 }
 
 // DDL operations

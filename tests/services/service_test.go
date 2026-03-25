@@ -25,6 +25,8 @@ type FakeRepo struct {
 	insertFn                func(string, map[string]any) (any, error)
 	updateFn                func(string, any, map[string]any) (any, error)
 	deleteFn                func(string, any) error
+	updateByColumnsFn       func(string, models.ComplexFilter, map[string]any) (any, error)
+	deleteByColumnsFn       func(string, models.ComplexFilter) (int64, error)
 	createCollectionFn      func(models.CreateTableRequest) error
 	addFieldFn              func(string, models.AddColumnRequest) error
 	alterCollectionFn       func(string, models.AlterTableRequest) error
@@ -142,6 +144,22 @@ func (f *FakeRepo) Delete(collection string, id any) error {
 		return f.deleteFn(collection, id)
 	}
 	return nil
+}
+
+func (f *FakeRepo) UpdateByColumns(collection string, where models.ComplexFilter, data map[string]any) (any, error) {
+	f.mark("UpdateByColumns")
+	if f.updateByColumnsFn != nil {
+		return f.updateByColumnsFn(collection, where, data)
+	}
+	return map[string]interface{}{}, nil
+}
+
+func (f *FakeRepo) DeleteByColumns(collection string, where models.ComplexFilter) (int64, error) {
+	f.mark("DeleteByColumns")
+	if f.deleteByColumnsFn != nil {
+		return f.deleteByColumnsFn(collection, where)
+	}
+	return 0, nil
 }
 
 // Bulk (unused in these tests)
@@ -797,7 +815,7 @@ func TestTableServiceAlterValidation(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected add column invalid type error")
 	}
-
+	// additional alter table validation
 	err = svc.AlterTable("users", models.AlterTableRequest{Action: "unknown"})
 	if err == nil {
 		t.Fatalf("expected alter table unsupported action error")
