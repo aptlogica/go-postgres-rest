@@ -6,6 +6,20 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -13,4 +27,29 @@ jobs:
           go-version: '1.24'
       - run: go mod tidy
       - run: go vet ./...
-      - run: go test ./... -coverprofile=coverage.out -coverpkg=./...
+      - name: Run tests with coverage
+        run: go test ./... -v -race -coverprofile=coverage.out -covermode=atomic
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: testdb
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage.out
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+          verbose: true
+      - name: Generate coverage report
+        if: always()
+        run: |
+          go tool cover -html=coverage.out -o coverage.html
+      - name: Archive coverage report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: coverage.html

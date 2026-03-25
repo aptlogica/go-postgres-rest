@@ -1,0 +1,405 @@
+openapi: 3.0.0
+info:
+  title: go-postgres-rest Query API
+  version: 1.0.0
+  description: PostgreSQL REST adapter - dynamic query builder API
+  contact:
+    name: Aptlogica Support
+    url: https://github.com/aptlogica/go-postgres-rest
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+  - url: https://api.example.com
+    description: Production server
+
+paths:
+  /{table}/query:
+    get:
+      summary: Get query results for table
+      operationId: getTableQuery
+      tags:
+        - Query
+      parameters:
+        - name: table
+          in: path
+          required: true
+          description: Table name to query
+          schema:
+            type: string
+            example: users
+        - name: limit
+          in: query
+          description: Maximum number of rows to return
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 10000
+            example: 50
+        - name: offset
+          in: query
+          description: Number of rows to skip
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+            example: 0
+        - name: filter
+          in: query
+          description: Filter condition (e.g., "status='active' AND age > 18")
+          schema:
+            type: string
+            example: status='active'
+        - name: sort
+          in: query
+          description: Sort columns (e.g., "created_at DESC, name ASC")
+          schema:
+            type: string
+            example: created_at DESC
+      responses:
+        '200':
+          description: Query results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                example:
+                  - id: 1
+                    name: "John Doe"
+                    email: "john@example.com"
+                    status: "active"
+                  - id: 2
+                    name: "Jane Smith"
+                    email: "jane@example.com"
+                    status: "inactive"
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Table not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      summary: Execute complex query on table
+      operationId: executeQuery
+      tags:
+        - Query
+      parameters:
+        - name: table
+          in: path
+          required: true
+          description: Table name to query
+          schema:
+            type: string
+            example: users
+      requestBody:
+        required: true
+        description: Query parameters
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryRequest'
+      responses:
+        '200':
+          description: Query execution successful
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '400':
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Query execution error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /{table}/{id}:
+    get:
+      summary: Get single record by ID
+      operationId: getRecord
+      tags:
+        - Records
+      parameters:
+        - name: table
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          description: Record ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Record found
+          content:
+            application/json:
+              schema:
+                type: object
+        '404':
+          description: Record not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      summary: Insert new record
+      operationId: insertRecord
+      tags:
+        - Records
+      parameters:
+        - name: table
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Record created
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          description: Invalid record data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      summary: Update record
+      operationId: updateRecord
+      tags:
+        - Records
+      parameters:
+        - name: table
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Record updated
+          content:
+            application/json:
+              schema:
+                type: object
+        '404':
+          description: Record not found
+
+    delete:
+      summary: Delete record
+      operationId: deleteRecord
+      tags:
+        - Records
+      parameters:
+        - name: table
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Record deleted
+        '404':
+          description: Record not found
+
+  /{table}/bulk:
+    post:
+      summary: Bulk insert multiple records
+      operationId: bulkInsert
+      tags:
+        - Bulk Operations
+      parameters:
+        - name: table
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+      responses:
+        '201':
+          description: Records inserted
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+components:
+  schemas:
+    QueryRequest:
+      type: object
+      description: Complex query parameters
+      properties:
+        filters:
+          type: array
+          description: Filter conditions to apply
+          items:
+            $ref: '#/components/schemas/Filter'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        sorting:
+          type: array
+          description: Sort order
+          items:
+            $ref: '#/components/schemas/Sort'
+        relationships:
+          type: array
+          description: Related tables to include
+          items:
+            type: string
+      example:
+        filters:
+          - column: status
+            operator: "="
+            value: "active"
+          - column: created_at
+            operator: ">"
+            value: "2024-01-01T00:00:00Z"
+        pagination:
+          limit: 50
+          offset: 0
+        sorting:
+          - column: created_at
+            direction: DESC
+
+    Filter:
+      type: object
+      description: Single filter condition
+      required:
+        - column
+        - operator
+        - value
+      properties:
+        column:
+          type: string
+          description: Column name
+          example: status
+        operator:
+          type: string
+          enum: [=, !=, <, >, <=, >=, IN, NOT IN, LIKE, ILIKE]
+          example: "="
+        value:
+          oneOf:
+            - type: string
+            - type: number
+            - type: boolean
+            - type: array
+          example: "active"
+
+    Pagination:
+      type: object
+      description: Pagination parameters
+      properties:
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 10000
+          default: 100
+          example: 50
+        offset:
+          type: integer
+          minimum: 0
+          default: 0
+          example: 0
+
+    Sort:
+      type: object
+      description: Sort specification
+      required:
+        - column
+        - direction
+      properties:
+        column:
+          type: string
+          example: created_at
+        direction:
+          type: string
+          enum: [ASC, DESC]
+          default: ASC
+
+    Error:
+      type: object
+      description: Error response
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+          example: 400
+        message:
+          type: string
+          example: "Invalid query parameters"
+        details:
+          type: string
+          example: "Filter condition contains invalid syntax"
+
+tags:
+  - name: Query
+    description: Execute queries on tables
+  - name: Records
+    description: CRUD operations on individual records
+  - name: Bulk Operations
+    description: Bulk data operations

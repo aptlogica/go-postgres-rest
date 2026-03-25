@@ -307,9 +307,42 @@ func (s *TableService) validateRenameColumnAction(data interface{}) error {
 }
 
 // Query building helpers
+
+// BuildComplexQuery constructs a QueryParams object from a complex filter map.
+// It processes multiple filter types and generates appropriate query parameters for database operations.
+//
+// Parameters:
+//   - tableName: The target table name (informational, not directly used in this function)
+//   - filters: A map containing filter specifications. Supported keys:
+//       - "select": comma-separated column names as string (e.g., "id,name,email")
+//       - "joins": array of join specifications for table joins
+//       - "aggregates": array of aggregate function specifications (COUNT, SUM, AVG, etc.)
+//       - "group_by": array of column names to group results by
+//       - "range": range filter for filtering by date/numeric ranges
+//       - "full_text": full-text search specifications
+//
+// Returns:
+//   - models.QueryParams: Populated query parameters object ready for execution
+//   - error: Non-nil if any filter parsing fails (type mismatch, invalid format, etc.)
+//
+// Example usage:
+//
+//	filters := map[string]interface{}{
+//		"select":     "id,name,email",
+//		"joins":      []interface{}{map[string]interface{}{"table": "profiles", "on": "users.id = profiles.user_id"}},
+//		"aggregates": []interface{}{map[string]interface{}{"function": "COUNT", "column": "id"}},
+//	}
+//	params, err := service.BuildComplexQuery("users", filters)
+//	if err != nil {
+//		// Handle: type validation error, missing required fields, etc.
+//		// Error will include field name and expected vs actual type
+//		log.Printf("Failed to build query: %v", err)
+//	}
 func (s *TableService) BuildComplexQuery(tableName string, filters map[string]interface{}) (models.QueryParams, error) {
 	params := models.QueryParams{}
 
+	// filterParsers maps filter type names to their respective parsing functions.
+	// Each parser validates the filter value type and populates the params object.
 	filterParsers := map[string]func(interface{}, *models.QueryParams) error{
 		"select":     ParseSelectFilter,
 		"joins":      ParseJoinsFilter,
@@ -319,12 +352,15 @@ func (s *TableService) BuildComplexQuery(tableName string, filters map[string]in
 		"full_text":  ParseFullTextFilter,
 	}
 
+	// Process each filter in the map, delegating type validation to specialized parsers
 	for key, value := range filters {
 		if fn, ok := filterParsers[key]; ok {
 			if err := fn(value, &params); err != nil {
+				// Error includes field name and type information for debugging
 				return params, err
 			}
 		}
+		// Unknown filter keys are silently ignored (forward compatibility)
 	}
 
 	return params, nil
@@ -345,6 +381,37 @@ func ParseSelectFilter(value interface{}, params *models.QueryParams) error {
 	return nil
 }
 
+// ParseJoinsFilter parses a joins filter specification and populates the QueryParams.
+// It expects an array of join specifications, each defining how to join another table.
+//
+// Expected value format:
+//   - Type: []interface{} (array of join objects)
+//   - Each join object (map[string]interface{}) should contain:
+//       - "table" (required): string - Target table name to join
+//       - "type" (optional): string - Join type (INNER, LEFT, RIGHT, FULL) defaults to INNER
+//       - "on" (required): string - Join condition (e.g., "users.id = orders.user_id")
+//       - "alias" (optional): string - Alias for joined table
+//
+// Example:
+//
+//	joins := []interface{}{
+//		map[string]interface{}{
+//			"table": "profiles",
+//			"type":  "LEFT",
+//			"on":    "users.id = profiles.user_id",
+//			"alias": "p",
+//		},
+//		map[string]interface{}{
+//			"table": "organizations",
+//			"on":    "profiles.org_id = organizations.id",
+//		},
+//	}
+//	err := ParseJoinsFilter(joins, &params)
+//
+// Returns error if:
+//   - value is not []interface{}, string, or nil
+//   - any join item is not a map[string]interface{}
+//   - required join fields are missing or have wrong types
 func ParseJoinsFilter(value interface{}, params *models.QueryParams) error {
 	if joinData, ok := value.([]interface{}); ok {
 		joins := make([]models.JoinClause, 0, len(joinData))
@@ -365,6 +432,11 @@ func ParseJoinsFilter(value interface{}, params *models.QueryParams) error {
 	return nil
 }
 
+// parseJoinItem converts a single join specification map into a JoinClause.
+// It validates all join fields and ensures required fields are present with correct types.
+// Field parsing order: table -> type -> on condition -> alias.
+//
+// Returns error with the specific field name and type mismatch if validation fails.
 func parseJoinItem(joinItem interface{}) (models.JoinClause, error) {
 	if joinMap, ok := joinItem.(map[string]interface{}); ok {
 		join := models.JoinClause{}

@@ -1,0 +1,33 @@
+# Code Owners - GitHub Pull Request Review Assignment
+
+# Core database operations and adapter
+/pkg/database/              @gauravgaikwad @aptlogica/db-team
+/pkg/database/postgres/     @gauravgaikwad
+/pkg/database/interfaces/   @gauravgaikwad
+
+# Service layer and business logic
+/pkg/services/              @aptlogica/service-team @gauravgaikwad
+/pkg/services/interfaces/   @gauravgaikwad
+
+# Configuration management
+/pkg/config/                @gauravgaikwad @aptlogica/maintainers
+
+# Utilities and helpers
+/pkg/utils/                 @aptlogica/maintainers
+/pkg/models/                @gauravgaikwad
+
+# Documentation
+CONTRIBUTING.md             @aptlogica/maintainers
+VERSIONING.md               @aptlogica/maintainers
+SECURITY.md                 @aptlogica/maintainers
+README.md                   @aptlogica/maintainers
+/docs/                      @aptlogica/maintainers
+
+# CI/CD and infrastructure
+.github/workflows/          @gauravgaikwad @aptlogica/maintainers
+Makefile                    @gauravgaikwad
+Dockerfile                  @gauravgaikwad
+docker-compose.yml          @gauravgaikwad
+
+# Default - all files require approval from maintainers
+*                           @gauravgaikwad @aptlogica/maintainers
