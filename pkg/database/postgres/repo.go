@@ -11,10 +11,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
-	"github.com/aptlogica/go-postgres-rest/pkg/models"
 	"reflect"
 	"regexp"
+
+	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
+	"github.com/aptlogica/go-postgres-rest/pkg/models"
 
 	"strings"
 
@@ -45,15 +46,16 @@ var (
 )
 
 const (
-	notNullClause   = "NOT NULL"
-	uniqueClause    = "UNIQUE"
-	fkClause        = "FOREIGN KEY"
-	cascadeClause   = "CASCADE"
-	onDeleteKeyword = "ON DELETE"
-	onUpdateKeyword = "ON UPDATE"
-	defaultClause   = "DEFAULT"
-	checkClause     = "CHECK"
-	equalParamFmt   = "%s = $%d"
+	notNullClause         = "NOT NULL"
+	uniqueClause          = "UNIQUE"
+	fkClause              = "FOREIGN KEY"
+	cascadeClause         = "CASCADE"
+	onDeleteKeyword       = "ON DELETE"
+	onUpdateKeyword       = "ON UPDATE"
+	defaultClause         = "DEFAULT"
+	checkClause           = "CHECK"
+	equalParamFmt         = "%s = $%d"
+	failedGetRowsAffected = "failed to get rows affected: %w"
 
 	// Validation constants
 	maxNameLength          = 63
@@ -645,7 +647,7 @@ func (postgresDbService *PostgresDbService) Delete(collection string, id any) er
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return fmt.Errorf(failedGetRowsAffected, err)
 	}
 
 	if rowsAffected == 0 {
@@ -2022,7 +2024,7 @@ func (postgresDbService *PostgresDbService) BulkUpdate(tableName string, updates
 
 		affected, err := result.RowsAffected()
 		if err != nil {
-			return 0, fmt.Errorf("failed to get rows affected: %w", err)
+			return 0, fmt.Errorf(failedGetRowsAffected, err)
 		}
 
 		totalAffected += affected
