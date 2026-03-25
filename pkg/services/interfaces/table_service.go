@@ -7,6 +7,7 @@ package interfaces
 
 import (
 	"context"
+
 	"github.com/aptlogica/go-postgres-rest/pkg/models"
 )
 
@@ -19,6 +20,8 @@ type Table interface {
 	CreateRecord(tableName string, data map[string]interface{}) (map[string]interface{}, error)
 	UpdateRecord(tableName string, id interface{}, data map[string]interface{}) (map[string]interface{}, error)
 	DeleteRecord(tableName string, id interface{}) error
+	UpdateByColumns(tableName string, where models.ComplexFilter, data map[string]any) (map[string]interface{}, error)
+	DeleteByColumns(tableName string, where models.ComplexFilter) (int64, error)
 
 	// DDL operations
 	CreateTable(req models.CreateTableRequest) error

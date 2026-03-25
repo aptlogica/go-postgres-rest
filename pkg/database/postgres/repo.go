@@ -1482,6 +1482,79 @@ func (postgresDbService *PostgresDbService) Update(collection string, id any, da
 	return result, nil
 }
 
+// UpdateByColumns updates specified columns for rows matching the provided column criteria.
+// `where` may contain one or more column=value pairs; at least one is required to avoid full-table updates.
+func (postgresDbService *PostgresDbService) UpdateByColumns(collection string, where models.ComplexFilter, data map[string]any) (any, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("no data provided for update")
+	}
+
+	if len(where.Filters) == 0 && len(where.Groups) == 0 {
+		return nil, fmt.Errorf("where clause required for UpdateByColumns to avoid full-table update")
+	}
+
+	// Validate table name
+	if err := ValidateQualifiedTableName(collection); err != nil {
+		return nil, fmt.Errorf(invalidTableNameErrFmt, err)
+	}
+
+	setParts := make([]string, 0, len(data))
+	args := make([]interface{}, 0, len(data))
+
+	i := 1
+	for col, val := range data {
+		if err := ValidateColumnName(col); err != nil {
+			return nil, fmt.Errorf(invalidColumnNameErrFmt, err)
+		}
+		args = append(args, ConvertToPostgresArray(val))
+		setParts = append(setParts, fmt.Sprintf(equalParamFmt, col, i))
+		i++
+	}
+
+	// Build WHERE clause using BuildComplexFilter
+	whereClause, whereArgs, _ := postgresDbService.BuildComplexFilter(where, i)
+	if whereClause == "" {
+		return nil, fmt.Errorf("failed to build where clause")
+	}
+	args = append(args, whereArgs...)
+
+	query := fmt.Sprintf(
+		"UPDATE %s SET %s WHERE %s RETURNING *",
+		collection,
+		strings.Join(setParts, ", "),
+		whereClause,
+	)
+
+	rows, err := postgresDbService.db.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update records: %w", err)
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		return nil, fmt.Errorf("no rows returned after update")
+	}
+
+	cols, err := rows.Columns()
+	if err != nil {
+		return nil, fmt.Errorf(failedToGetColumnsErrFmt, err)
+	}
+
+	values := make([]interface{}, len(cols))
+	valuePtrs := make([]interface{}, len(cols))
+	for j := range values {
+		valuePtrs[j] = &values[j]
+	}
+
+	if err := rows.Scan(valuePtrs...); err != nil {
+		return nil, fmt.Errorf(failedToScanRowErrFmt, err)
+	}
+
+	result := postgresDbService.ParseRow(cols, values)
+
+	return result, nil
+}
+
 // ConvertPrimitiveArray converts primitive slice types to PostgreSQL arrays
 func (postgresDbService *PostgresDbService) ConvertPrimitiveArray(val interface{}) interface{} {
 	switch v := val.(type) {
@@ -2035,6 +2108,39 @@ func (postgresDbService *PostgresDbService) BulkUpdate(tableName string, updates
 	}
 
 	return totalAffected, nil
+}
+
+// DeleteByColumns deletes rows matching the provided column criteria. `where` must contain
+// at least one filter to avoid accidental full-table deletes. Returns rows affected.
+func (postgresDbService *PostgresDbService) DeleteByColumns(collection string, where models.ComplexFilter) (int64, error) {
+	if len(where.Filters) == 0 && len(where.Groups) == 0 {
+		return 0, fmt.Errorf("where clause required for DeleteByColumns to avoid full-table delete")
+	}
+
+	// Validate table name
+	if err := ValidateQualifiedTableName(collection); err != nil {
+		return 0, fmt.Errorf(invalidTableNameErrFmt, err)
+	}
+
+	// Build WHERE clause using BuildComplexFilter
+	whereClause, args, _ := postgresDbService.BuildComplexFilter(where, 1)
+	if whereClause == "" {
+		return 0, fmt.Errorf("failed to build where clause")
+	}
+
+	query := fmt.Sprintf("DELETE FROM %s WHERE %s", collection, whereClause)
+
+	result, err := postgresDbService.db.Exec(query, args...)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete records: %w", err)
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	return affected, nil
 }
 
 // BulkDelete implements interfaces.DatabaseRepo.

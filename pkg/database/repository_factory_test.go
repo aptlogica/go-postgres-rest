@@ -32,6 +32,10 @@ func (stubDatabaseRepo) CheckTableExists(string) (bool, error)           { retur
 func (stubDatabaseRepo) Insert(string, map[string]any) (any, error)      { return nil, nil }
 func (stubDatabaseRepo) Update(string, any, map[string]any) (any, error) { return nil, nil }
 func (stubDatabaseRepo) Delete(string, any) error                        { return nil }
+func (stubDatabaseRepo) UpdateByColumns(string, models.ComplexFilter, map[string]any) (any, error) {
+	return nil, nil
+}
+func (stubDatabaseRepo) DeleteByColumns(string, models.ComplexFilter) (int64, error) { return 0, nil }
 func (stubDatabaseRepo) BulkInsert(string, []map[string]interface{}) ([]map[string]interface{}, error) {
 	return nil, nil
 }

@@ -69,6 +69,10 @@ func (fakeDatabaseRepo) CheckTableExists(string) (bool, error)                  
 func (fakeDatabaseRepo) Insert(string, map[string]any) (any, error)             { return nil, nil }
 func (fakeDatabaseRepo) Update(string, any, map[string]any) (any, error)        { return nil, nil }
 func (fakeDatabaseRepo) Delete(string, any) error                               { return nil }
+func (fakeDatabaseRepo) UpdateByColumns(string, models.ComplexFilter, map[string]any) (any, error) {
+	return nil, nil
+}
+func (fakeDatabaseRepo) DeleteByColumns(string, models.ComplexFilter) (int64, error) { return 0, nil }
 func (fakeDatabaseRepo) BulkInsert(string, []map[string]interface{}) ([]map[string]interface{}, error) {
 	return nil, nil
 }

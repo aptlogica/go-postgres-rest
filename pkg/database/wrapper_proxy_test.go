@@ -117,6 +117,19 @@ func TestDMLWrapperDelegationFromDatabasePackage(t *testing.T) {
 		t.Fatalf("Delete: %v", err)
 	}
 
+	// UpdateByColumns should delegate and return a row
+	mock.ExpectQuery("UPDATE dml").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("1"))
+	where := models.ComplexFilter{Filters: []models.QueryFilter{{Column: "id", Operator: "=", Value: 1}}, Logic: "AND"}
+	if _, err := dml.UpdateByColumns("dml", where, map[string]any{"name": "x"}); err != nil {
+		t.Fatalf("UpdateByColumns: %v", err)
+	}
+
+	// DeleteByColumns should delegate and return rows affected
+	mock.ExpectExec("DELETE FROM dml").WillReturnResult(sqlmock.NewResult(0, 2))
+	if _, err := dml.DeleteByColumns("dml", where); err != nil {
+		t.Fatalf("DeleteByColumns: %v", err)
+	}
+
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf(errExpectations, err)
 	}
