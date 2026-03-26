@@ -3,29 +3,5 @@
 
 version: 1
 
-# Define patterns to ignore (allowlist)
-# These are expected secrets used in test/development environments only
-ignore-patterns:
-  - name: "test-db-credentials"
-    patterns:
-      - "POSTGRES_PASSWORD.*postgres"
-      - "DB_PASSWORD.*postgres"
-    reason: "Test-only database credentials used in CI/dev environments"
-    paths:
-      - ".devcontainer/**"
-      - ".github/workflows/**"
-
-# Policies
-policies:
-  - id: "check-passwords"
-    ignore-patterns:
-      - "test-db-credentials"
-
-# Do not fail on high severity secrets in these paths (development/test only)
-ignore-files:
-  - ".devcontainer/**"
-
-# Ignore specific secret types in development files
-ignore-secret-types:
-  - "Generic Password"
-  - "Generic API Key"
+# No hardcoded secrets - all credentials use GitHub Actions secrets
+# This file remains for reference and future configuration needs

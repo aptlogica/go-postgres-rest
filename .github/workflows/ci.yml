@@ -10,10 +10,8 @@ jobs:
       postgres:
         image: postgres:15
         env:
-          # Test database credentials for CI environment
-          # These are ephemeral and used only for test database within container
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD || 'test-db-secure' }}
           POSTGRES_DB: testdb
         options: >-
           --health-cmd pg_isready
@@ -39,11 +37,10 @@ jobs:
       - name: Run tests with coverage
         run: go test ./pkg/... -v -race -coverprofile=coverage.out -covermode=atomic -timeout 120s
         env:
-          # Test database - ephemeral CI-only credentials
           DB_HOST: localhost
           DB_PORT: 5432
           DB_USER: postgres
-          DB_PASSWORD: postgres
+          DB_PASSWORD: ${{ secrets.POSTGRES_PASSWORD || 'test-db-secure' }}
           DB_NAME: testdb
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
