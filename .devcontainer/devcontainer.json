@@ -10,9 +10,8 @@
   },
   
   "containerEnv": {
-    // Local development credentials - test environment only
     "POSTGRES_USER": "postgres",
-    "POSTGRES_PASSWORD": "postgres",
+    "POSTGRES_PASSWORD": "${localEnv:POSTGRES_PASSWORD:postgres}",
     "POSTGRES_DB": "go_postgres_rest",
     "POSTGRES_INITDB_ARGS": "--encoding=UTF8"
   },
