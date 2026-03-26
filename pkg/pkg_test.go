@@ -12,8 +12,6 @@ import (
 	"fmt"
 	"testing"
 
-	pkg "github.com/aptlogica/go-postgres-rest/pkg"
-
 	"github.com/aptlogica/go-postgres-rest/pkg/config"
 	"github.com/aptlogica/go-postgres-rest/pkg/database"
 	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
@@ -21,21 +19,21 @@ import (
 )
 
 func TestNewDatabaseService(t *testing.T) {
-	svc := pkg.NewDatabaseService()
+	svc := NewDatabaseService()
 	if svc == nil {
 		t.Fatalf("expected non-nil service")
 	}
 }
 
 func TestNewDatabaseServiceWithInit_NilConfig(t *testing.T) {
-	if _, err := pkg.NewDatabaseServiceWithInit(nil); err == nil {
+	if _, err := NewDatabaseServiceWithInit(nil); err == nil {
 		t.Fatalf("expected error for nil config")
 	}
 }
 
 func TestNewDatabaseServiceWithInit_UnsupportedDriver(t *testing.T) {
 	cfg := &config.Config{Database: config.DatabaseConfig{Driver: "invalid"}}
-	if _, err := pkg.NewDatabaseServiceWithInit(cfg); err == nil {
+	if _, err := NewDatabaseServiceWithInit(cfg); err == nil {
 		t.Fatalf("expected unsupported driver error")
 	}
 }
@@ -122,11 +120,11 @@ func TestNewDatabaseServiceWithInit_HappyPath(t *testing.T) {
 	cfg := &config.Config{Database: config.DatabaseConfig{Driver: "postgres"}}
 	fakeDBInstance := &fakeDB{}
 
-	prevConnectorFactory := pkg.CreateConnectorFactory
-	prevRepoFactory := pkg.CreateRepository
-	defer func() { pkg.CreateConnectorFactory = prevConnectorFactory; pkg.CreateRepository = prevRepoFactory }()
+	prevConnectorFactory := CreateConnectorFactory
+	prevRepoFactory := CreateRepository
+	defer func() { CreateConnectorFactory = prevConnectorFactory; CreateRepository = prevRepoFactory }()
 
-	pkg.CreateConnectorFactory = func() *database.DatabaseConnectorFactory {
+	CreateConnectorFactory = func() *database.DatabaseConnectorFactory {
 		factory := database.NewDatabaseConnectorFactory()
 		factory.RegisterConnector("postgres", connectorFactoryFunc(func(cfg *config.DatabaseConfig) (interfaces.DB, error) {
 			return fakeDBInstance, nil
@@ -134,14 +132,14 @@ func TestNewDatabaseServiceWithInit_HappyPath(t *testing.T) {
 		return factory
 	}
 
-	pkg.CreateRepository = func(dbType string, db interfaces.DB) (interfaces.DatabaseRepo, error) {
+	CreateRepository = func(dbType string, db interfaces.DB) (interfaces.DatabaseRepo, error) {
 		if _, ok := db.(*fakeDB); !ok {
 			return nil, fmt.Errorf("unexpected db instance")
 		}
 		return fakeDatabaseRepo{}, nil
 	}
 
-	svc, err := pkg.NewDatabaseServiceWithInit(cfg)
+	svc, err := NewDatabaseServiceWithInit(cfg)
 	if err != nil {
 		t.Fatalf("expected happy path, got error %v", err)
 	}

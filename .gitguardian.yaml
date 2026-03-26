@@ -1,0 +1,7 @@
+# GitGuardian Configuration
+# https://docs.gitguardian.com/internal-repositories-documentation/secrets-engine-configuration
+
+version: 1
+
+# No hardcoded secrets - all credentials use GitHub Actions secrets
+# This file remains for reference and future configuration needs

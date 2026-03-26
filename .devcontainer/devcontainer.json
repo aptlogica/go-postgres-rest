@@ -1,0 +1,64 @@
+{
+  "name": "go-postgres-rest",
+  "image": "mcr.microsoft.com/devcontainers/go:1.21",
+  
+  "features": {
+    "ghcr.io/devcontainers/features/postgres:1": {
+      "version": "15"
+    },
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+  },
+  
+  "containerEnv": {
+    "POSTGRES_USER": "postgres",
+    "POSTGRES_PASSWORD": "${localEnv:POSTGRES_PASSWORD:dev-secure-postgres-change-me}",
+    "POSTGRES_DB": "go_postgres_rest",
+    "POSTGRES_INITDB_ARGS": "--encoding=UTF8"
+  },
+  
+  "forwardPorts": [5432, 8080],
+  "portsAttributes": {
+    "5432": {
+      "label": "PostgreSQL",
+      "onAutoForward": "notify"
+    },
+    "8080": {
+      "label": "API Server",
+      "onAutoForward": "notify"
+    }
+  },
+  
+  "postCreateCommand": "go mod download && go mod verify",
+  
+  "postStartCommand": "go test -v ./...",
+  
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.Go",
+        "GitHub.Copilot",
+        "ms-vscode.makefile-tools",
+        "golang.go-lint"
+      ],
+      "settings": {
+        "go.useLanguageServer": true,
+        "go.lintOnSave": "package",
+        "[go]": {
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+          }
+        }
+      }
+    }
+  },
+  
+  "remoteUser": "vscode",
+  "remoteEnv": {
+    "GO111MODULE": "on"
+  },
+  
+  "mounts": [
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/vscode/.ssh,readonly"
+  ]
+}

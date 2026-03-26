@@ -46,15 +46,16 @@ var (
 )
 
 const (
-	notNullClause   = "NOT NULL"
-	uniqueClause    = "UNIQUE"
-	fkClause        = "FOREIGN KEY"
-	cascadeClause   = "CASCADE"
-	onDeleteKeyword = "ON DELETE"
-	onUpdateKeyword = "ON UPDATE"
-	defaultClause   = "DEFAULT"
-	checkClause     = "CHECK"
-	equalParamFmt   = "%s = $%d"
+	notNullClause         = "NOT NULL"
+	uniqueClause          = "UNIQUE"
+	fkClause              = "FOREIGN KEY"
+	cascadeClause         = "CASCADE"
+	onDeleteKeyword       = "ON DELETE"
+	onUpdateKeyword       = "ON UPDATE"
+	defaultClause         = "DEFAULT"
+	checkClause           = "CHECK"
+	equalParamFmt         = "%s = $%d"
+	failedGetRowsAffected = "failed to get rows affected: %w"
 
 	// Validation constants
 	maxNameLength          = 63
@@ -646,7 +647,7 @@ func (postgresDbService *PostgresDbService) Delete(collection string, id any) er
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
+		return fmt.Errorf(failedGetRowsAffected, err)
 	}
 
 	if rowsAffected == 0 {
@@ -2096,7 +2097,7 @@ func (postgresDbService *PostgresDbService) BulkUpdate(tableName string, updates
 
 		affected, err := result.RowsAffected()
 		if err != nil {
-			return 0, fmt.Errorf("failed to get rows affected: %w", err)
+			return 0, fmt.Errorf(failedGetRowsAffected, err)
 		}
 
 		totalAffected += affected
@@ -2721,7 +2722,28 @@ func (r *PostgresDbService) RemoveManyToManyRelations(relationship *models.Relat
 	return int(count), nil
 }
 
-// buildRelationshipBaseQuery builds the base SELECT query for different relationship types
+// buildRelationshipBaseQuery builds the base SELECT query for different relationship types.
+// It constructs the appropriate SQL based on the relationship type (one-to-one, one-to-many, many-to-many)
+// and applies any field selections specified in the params.
+//
+// Relationship type handling:
+//   - OneToOne/OneToMany: Direct join between source and target table on target column
+//   - ManyToMany: Join through intermediate join table with conditions on source/target join columns
+//
+// Parameters:
+//   - relationship: Relationship definition containing target table, columns, and join table info
+//   - params: Query parameters with optional Select field list
+//   - argCounter: Current SQL parameter counter (for value placeholders $1, $2, etc.)
+//
+// Returns:
+//   - string: Partial SQL query (SELECT clause and initial FROM/WHERE without modifiers)
+//   - int: Updated argCounter after consuming parameters
+//
+// Example output for one-to-many:
+//   SELECT orders.* FROM orders WHERE orders.user_id = $1
+//
+// Example output for many-to-many:
+//   SELECT t.* FROM products t INNER JOIN order_items j ON t.id = j.product_id WHERE j.order_id = $1
 func (r *PostgresDbService) buildRelationshipBaseQuery(relationship *models.RelationshipDefinition, params models.QueryParams, argCounter int) (string, int) {
 	var query strings.Builder
 
@@ -2756,7 +2778,26 @@ func (r *PostgresDbService) buildRelationshipBaseQuery(relationship *models.Rela
 	return query.String(), argCounter
 }
 
-// addQueryModifiers adds filters, ordering, limits, and offsets to a query
+// addQueryModifiers appends filtering, ordering, pagination, and other modifiers to a query.
+// This function handles WHERE conditions, ORDER BY, LIMIT, and OFFSET clauses.
+//
+// Processing order:
+//  1. Filters: AND conditions from params.Filters (converted to SQL conditions)
+//  2. OrderBy: ORDER BY clause with specified columns
+//  3. Limit: LIMIT clause for result count restriction
+//  4. Offset: OFFSET clause for pagination
+//
+// Parameters:
+//   - query: String builder to append modifiers to (mutated in-place)
+//   - params: QueryParams containing filters, ordering, limits
+//   - argCounter: Current SQL parameter counter for placeholder generation
+//
+// Returns:
+//   - []interface{}: All SQL parameter values to be passed to database
+//   - int: Final parameter counter after all modifiers
+//
+// Note: Filter arguments are collected and passed separately to maintain
+// correct parameter ordering for prepared statements (critical for SQL injection prevention).
 func (r *PostgresDbService) addQueryModifiers(query *strings.Builder, params models.QueryParams, argCounter int) ([]interface{}, int) {
 	var args []interface{}
 

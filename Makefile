@@ -70,7 +70,7 @@ build-all: ## Build for multiple platforms (Linux, Darwin, Windows)
 # Run tests
 test: ## Run all tests
 	@echo "${GREEN}Running tests...${NC}"
-	$(GOTEST) -v -race -coverprofile=$(COVER_PROFILE) -covermode=atomic -coverpkg=./... ./tests/...
+	$(GOTEST) -v -race -coverprofile=$(COVER_PROFILE) -covermode=atomic ./pkg/...
 	@echo "${GREEN}Tests completed!${NC}"
 
 # Run tests with coverage
