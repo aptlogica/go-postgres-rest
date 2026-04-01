@@ -1,4 +1,6 @@
 name: CI
+permissions:
+  contents: read
 on:
   push:
     branches: [main, develop]
@@ -21,8 +23,8 @@ jobs:
         ports:
           - 5432:5432
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v4.3.1 # 34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-go@v5.6.0 # 40f1582b2485089dde7abd97c1529aa768e1baff
         with:
           go-version: '1.24'
       - run: go mod tidy
@@ -43,7 +45,7 @@ jobs:
           DB_PASSWORD: ${{ secrets.POSTGRES_PASSWORD || 'test-db-secure' }}
           DB_NAME: testdb
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v3.1.4 # eaaf4bedf32dbdc6b720b63067d99c4d77d6047d
         with:
           files: ./coverage.out
           flags: unittests
@@ -56,7 +58,7 @@ jobs:
           go tool cover -html=coverage.out -o coverage.html
       - name: Archive coverage report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.3.1 # 5d5d22a31266ced268874388b861e4b58bb5c2f3
         with:
           name: coverage-report
           path: coverage.html
