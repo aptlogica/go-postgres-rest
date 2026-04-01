@@ -1,3 +1,4 @@
+
 name: Release
 
 on:
@@ -5,57 +6,40 @@ on:
     tags:
       - 'v*'
 
-
+permissions:
+  contents: read
 
 jobs:
   release:
-    permissions:
-      contents: write
-      packages: write
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           fetch-depth: 0
-          
-      - name: Setup Go
+
+      - name: Set up Go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
         with:
-          go-version: '1.23'
-          
+          go-version: '1.24'
+
       - name: Run tests
-        run: go test ./...
-        
+        run: go test -v -race ./...
+
       - name: Build binaries
-        env:
-          VERSION: ${{ github.ref_name }}
         run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=${VERSION}" -o dist/go-postgres-rest-linux-amd64 ./cmd/...
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "-X main.version=${VERSION}" -o dist/go-postgres-rest-linux-arm64 ./cmd/...
-          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags "-X main.version=${VERSION}" -o dist/go-postgres-rest-darwin-amd64 ./cmd/...
-          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags "-X main.version=${VERSION}" -o dist/go-postgres-rest-darwin-arm64 ./cmd/...
-          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "-X main.version=${VERSION}" -o dist/go-postgres-rest-windows-amd64.exe ./cmd/...
-          
-      - name: Generate changelog
-        id: changelog
-        run: |
-          if [ -f "CHANGELOG.md" ]; then
-            # Extract version changelog
-            VERSION=${GITHUB_REF#refs/tags/v}
-            awk "/## \[$VERSION\]/{flag=1; next} /## \[/{flag=0} flag" CHANGELOG.md > release_notes.md
-            echo "changelog<<EOF" >> $GITHUB_OUTPUT
-            cat release_notes.md >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          else
-            echo "changelog=Released version $VERSION" >> $GITHUB_OUTPUT
-          fi
-          
-      - name: Create GitHub Release
+          GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=${{ github.ref_name }}" -o bin/go-postgres-rest-linux-amd64 ./cmd/server
+          GOOS=darwin GOARCH=amd64 go build -ldflags "-X main.version=${{ github.ref_name }}" -o bin/go-postgres-rest-darwin-amd64 ./cmd/server
+          GOOS=darwin GOARCH=arm64 go build -ldflags "-X main.version=${{ github.ref_name }}" -o bin/go-postgres-rest-darwin-arm64 ./cmd/server
+          GOOS=windows GOARCH=amd64 go build -ldflags "-X main.version=${{ github.ref_name }}" -o bin/go-postgres-rest-windows-amd64.exe ./cmd/server
+
+      - name: Create Release
         uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe
         with:
-          body: ${{ steps.changelog.outputs.changelog }}
-          draft: false
-          prerelease: ${{ contains(github.ref, '-') }}
+          generate_release_notes: true
           files: |
-            dist/*
+            bin/go-postgres-rest-*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
