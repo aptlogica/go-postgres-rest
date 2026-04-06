@@ -45,7 +45,7 @@ jobs:
           DB_PASSWORD: ${{ secrets.POSTGRES_PASSWORD || 'test-db-secure' }}
           DB_NAME: testdb
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d
+        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2
         with:
           files: ./coverage.out
           flags: unittests
