@@ -15,6 +15,7 @@
   <a href="https://sonar.aptlogica.com/dashboard?id=aptlogica_go-postgres-rest_3356bc40-4059-4939-8cce-5e86bba44a39">
     <img src="https://sonar.aptlogica.com/api/project_badges/measure?project=aptlogica_go-postgres-rest_3356bc40-4059-4939-8cce-5e86bba44a39&metric=coverage&token=sqb_152d71a0f9a3621514372a3e4c87460e3059bbc2" alt="Coverage">
   </a>
+<a href="https://app.fossa.com/projects/git%2Bgithub.com%2Faptlogica%2Fgo-postgres-rest?ref=badge_shield" alt="FOSSA Status"><img src="https://app.fossa.com/api/projects/git%2Bgithub.com%2Faptlogica%2Fgo-postgres-rest.svg?type=shield"/></a>
   <a href="https://sonar.aptlogica.com/dashboard?id=aptlogica_go-postgres-rest_3356bc40-4059-4939-8cce-5e86bba44a39">
     <img src="https://sonar.aptlogica.com/api/project_badges/measure?project=aptlogica_go-postgres-rest_3356bc40-4059-4939-8cce-5e86bba44a39&metric=alert_status&token=sqb_152d71a0f9a3621514372a3e4c87460e3059bbc2" alt="Quality Gate">
   </a>
@@ -28,6 +29,9 @@
 </p>
 
 > A comprehensive PostgreSQL REST API framework and Golang backend framework for enterprise-grade applications. This production-ready Postgres API server and open source database API provides high-level abstractions for building scalable REST APIs with advanced query building, schema management, bulk operations, database migrations, and performance optimization.
+
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Faptlogica%2Fgo-postgres-rest.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Faptlogica%2Fgo-postgres-rest?ref=badge_large)
 
 ## Overview
 
@@ -182,4 +186,3 @@ See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
 ## License
 
 MIT License. Copyright (c) 2026 Aptlogica Technologies.
-
