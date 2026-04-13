@@ -24,7 +24,7 @@ jobs:
           - 5432:5432
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c
         with:
           go-version: '1.24'
       - run: go mod tidy
@@ -45,7 +45,7 @@ jobs:
           DB_PASSWORD: ${{ secrets.POSTGRES_PASSWORD || 'test-db-secure' }}
           DB_NAME: testdb
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d
+        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2
         with:
           files: ./coverage.out
           flags: unittests
@@ -58,7 +58,7 @@ jobs:
           go tool cover -html=coverage.out -o coverage.html
       - name: Archive coverage report
         if: always()
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: coverage-report
           path: coverage.html
