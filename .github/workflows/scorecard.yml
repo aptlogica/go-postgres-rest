@@ -30,13 +30,20 @@ jobs:
           results_format: sarif
           publish_results: false
 
-      - name: Filter out CII-Best-Practices from SARIF
+      - name: Filter and sanitize SARIF
         run: |
           if ! command -v jq >/dev/null; then
             sudo apt-get update && sudo apt-get install -y jq
           fi
           # Remove results whose ruleId is CII-Best-Practices
-          jq '(.runs[] .results) |= [ .[] | select(.ruleId != "CII-Best-Practices") ]' results.sarif > filtered.sarif || true
+          # Also remove results that contain invalid artifactLocation URIs (e.g. "no file associated with this alert")
+          jq '
+            (.runs[] .results) |= [
+              .[]
+              | select(.ruleId != "CII-Best-Practices")
+              | select((.locations // []) | all(.physicalLocation?.artifactLocation?.uri?; . != "no file associated with this alert"))
+            ]
+          ' results.sarif > filtered.sarif || true
           mv filtered.sarif results.sarif
 
       - name: Upload artifact
