@@ -43,6 +43,11 @@ func (postgresDbService *PostgresDbService) Ping() (bool, error) {
 var (
 	validColumnRegex = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 	validTableRegex  = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
+	// normalize JSONB arrow spacing in select/group expressions
+	jsonbArrowRegexp       = regexp.MustCompile(`\s*->\s*`)
+	jsonbDoubleArrowRegexp = regexp.MustCompile(`\s*->>\s*`)
+	// detect "AS" in select expressions
+	selectAsRegexp = regexp.MustCompile(`(?i)\s+as\s+`)
 )
 
 const (
@@ -1077,6 +1082,61 @@ func ValidateAndQuoteOrderByList(orderByList []string) ([]string, error) {
 	return quotedOrderBy, nil
 }
 
+// normalizeJSONBPath removes whitespace around JSONB operators and returns normalized expression
+func normalizeJSONBPath(s string) string {
+	s = strings.TrimSpace(s)
+	s = jsonbDoubleArrowRegexp.ReplaceAllString(s, "->>")
+	s = jsonbArrowRegexp.ReplaceAllString(s, "->")
+	return s
+}
+
+// parseSelectItem extracts expression and optional alias from a select item
+// Supports forms: "expr AS alias", "expr as alias", or "expr alias" (last token treated as alias)
+func parseSelectItem(sel string) (string, string) {
+	s := strings.TrimSpace(sel)
+	if selectAsRegexp.MatchString(s) {
+		parts := selectAsRegexp.Split(s, 2)
+		expr := strings.TrimSpace(parts[0])
+		alias := strings.TrimSpace(parts[1])
+		return expr, alias
+	}
+	fields := strings.Fields(s)
+	if len(fields) >= 2 {
+		last := fields[len(fields)-1]
+		rest := strings.Join(fields[:len(fields)-1], " ")
+		if validColumnRegex.MatchString(last) {
+			return rest, last
+		}
+	}
+	return s, ""
+}
+
+// ParseSelectAliases returns a map of alias -> expression (normalized) for select columns
+// Useful for resolving GROUP BY entries that reference select aliases.
+func ParseSelectAliases(selectCols []string) map[string]string {
+	aliasMap := make(map[string]string)
+	for _, sel := range selectCols {
+		expr, alias := parseSelectItem(sel)
+		if alias == "" {
+			continue
+		}
+		norm := normalizeJSONBPath(expr)
+		if IsJSONBPath(norm) {
+			if err := ValidateJSONBPath(norm); err == nil {
+				aliasMap[alias] = norm
+				continue
+			}
+		}
+		if err := ValidateColumnName(expr); err == nil {
+			aliasMap[alias] = pq.QuoteIdentifier(expr)
+			continue
+		}
+		// fallback: store normalized expression as-is
+		aliasMap[alias] = norm
+	}
+	return aliasMap
+}
+
 func (postgresDbService *PostgresDbService) BuildComplexFilter(filter models.ComplexFilter, argCounter int) (string, []interface{}, int) {
 	// Pre-allocate conditions with known size to avoid repeated reallocations
 	conditions := make([]string, 0, len(filter.Filters)+len(filter.Groups))
@@ -1141,7 +1201,7 @@ func (postgresDbService *PostgresDbService) BuildAdvancedQuery(tableName string,
 	}
 
 	// GROUP BY clause
-	groupByClause := postgresDbService.BuildGroupByClause(params.GroupBy)
+	groupByClause := postgresDbService.BuildGroupByClauseWithSelect(params.GroupBy, params.Select)
 	if groupByClause != "" {
 		query.WriteString(groupByClause)
 	}
@@ -1212,14 +1272,62 @@ func (postgresDbService *PostgresDbService) BuildSelectColumnParts(selectCols []
 		return []string{"*"}
 	}
 
-	// Validate and quote SELECT columns
-	quotedCols, err := ValidateAndQuoteColumnList(selectCols)
-	if err == nil {
-		return quotedCols
+	parts := make([]string, 0, len(selectCols))
+	for _, sel := range selectCols {
+		expr, alias := parseSelectItem(sel)
+		exprNorm := normalizeJSONBPath(expr)
+
+		// wildcard
+		if exprNorm == "*" {
+			parts = append(parts, "*")
+			continue
+		}
+
+		// JSONB expression (leave unquoted)
+		if IsJSONBPath(exprNorm) {
+			if err := ValidateJSONBPath(exprNorm); err == nil {
+				if alias != "" {
+					if ValidateColumnName(alias) == nil {
+						parts = append(parts, fmt.Sprintf("%s AS %s", exprNorm, pq.QuoteIdentifier(alias)))
+					} else {
+						parts = append(parts, fmt.Sprintf("%s AS %s", exprNorm, alias))
+					}
+				} else {
+					parts = append(parts, exprNorm)
+				}
+				continue
+			}
+			// fallthrough to other handling if validation fails
+		}
+
+		// simple column
+		if err := ValidateColumnName(expr); err == nil {
+			colQuoted := pq.QuoteIdentifier(expr)
+			if alias != "" {
+				if ValidateColumnName(alias) == nil {
+					parts = append(parts, fmt.Sprintf("%s AS %s", colQuoted, pq.QuoteIdentifier(alias)))
+				} else {
+					parts = append(parts, fmt.Sprintf("%s AS %s", colQuoted, alias))
+				}
+			} else {
+				parts = append(parts, colQuoted)
+			}
+			continue
+		}
+
+		// function or arbitrary expression - keep as-is but attach alias if present
+		if alias != "" {
+			if ValidateColumnName(alias) == nil {
+				parts = append(parts, fmt.Sprintf("%s AS %s", expr, pq.QuoteIdentifier(alias)))
+			} else {
+				parts = append(parts, fmt.Sprintf("%s AS %s", expr, alias))
+			}
+		} else {
+			parts = append(parts, expr)
+		}
 	}
 
-	// If validation fails, fall back to SELECT *
-	return []string{"*"}
+	return parts
 }
 
 // BuildSelectClause builds the SELECT clause with aggregations and column selection
@@ -1334,6 +1442,49 @@ func (postgresDbService *PostgresDbService) BuildGroupByClause(groupBy []string)
 		return " GROUP BY " + strings.Join(quotedGroupBy, ", ")
 	}
 	return ""
+}
+
+// BuildGroupByClauseWithSelect builds GROUP BY but resolves select aliases to their expressions
+// so callers can use group_by entries that reference select aliases (e.g., actor_name).
+func (postgresDbService *PostgresDbService) BuildGroupByClauseWithSelect(groupBy []string, selectCols []string) string {
+	if len(groupBy) == 0 {
+		return ""
+	}
+
+	aliasMap := ParseSelectAliases(selectCols)
+	parts := make([]string, 0, len(groupBy))
+	for _, g := range groupBy {
+		gTrim := strings.TrimSpace(g)
+
+		// If this matches a select alias, use its expression
+		if expr, ok := aliasMap[gTrim]; ok {
+			parts = append(parts, expr)
+			continue
+		}
+
+		// Normalize potential JSONB path
+		norm := normalizeJSONBPath(gTrim)
+		if IsJSONBPath(norm) {
+			if err := ValidateJSONBPath(norm); err == nil {
+				parts = append(parts, norm)
+				continue
+			}
+		}
+
+		// Regular column name
+		if err := ValidateColumnName(gTrim); err == nil {
+			parts = append(parts, pq.QuoteIdentifier(gTrim))
+			continue
+		}
+
+		// Fallback: include raw string
+		parts = append(parts, gTrim)
+	}
+
+	if len(parts) == 0 {
+		return ""
+	}
+	return " GROUP BY " + strings.Join(parts, ", ")
 }
 
 // BuildHavingClause builds the HAVING clause
