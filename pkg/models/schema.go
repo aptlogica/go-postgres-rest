@@ -41,6 +41,7 @@ type ForeignKey struct {
 // Enhanced query models
 type QueryFilter struct {
 	Column   string      `json:"column"`
+	JSONPath []string    `json:"json_path,omitempty"` // For JSONB path queries: ["result", "success"]
 	Operator string      `json:"operator"`
 	Value    interface{} `json:"value"`
 	Logic    string      `json:"logic,omitempty"` // "AND" or "OR"
