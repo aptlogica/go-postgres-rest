@@ -31,8 +31,6 @@
 > A comprehensive PostgreSQL REST API framework and Golang backend framework for enterprise-grade applications. This production-ready Postgres API server and open source database API provides high-level abstractions for building scalable REST APIs with advanced query building, schema management, bulk operations, database migrations, and performance optimization.
 
 
-[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Faptlogica%2Fgo-postgres-rest.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Faptlogica%2Fgo-postgres-rest?ref=badge_large)
-
 ## Overview
 
 **go-postgres-rest** is a Golang-based REST API service that provides a scalable and secure interface for interacting with PostgreSQL databases. It enables automatic exposure of database tables as REST endpoints, allowing applications to perform CRUD operations through simple HTTP requests. Designed for modern backend architectures, it helps developers rapidly build data-driven applications, internal tools, and low-code platforms while maintaining high performance and full control over database structure. This service simplifies backend development by transforming PostgreSQL into a flexible API layer that integrates seamlessly with web, mobile, and cloud applications.This service is designed to support modern data-driven applications, low-code platforms, and internal tools by simplifying database access through standardized HTTP APIs. It allows developers and teams to quickly build backend functionality while maintaining flexibility, performance, and full control over their data.
