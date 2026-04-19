@@ -4,7 +4,7 @@ This document describes the governance structure and decision-making process for
 
 ## Overview
 
-go-postgres-rest is an open-source project maintained by [Aptlogica Technologies](https://www.aptlogica.com) under the MIT License. We welcome contributions from the community and follow transparent governance practices.
+go-postgres-rest is an open-source project maintained by [Aptlogica Technologies](https://www.aptlogica.com) under the Apache License 2.0. We welcome contributions from the community and follow transparent governance practices.
 
 ## Project Roles
 
@@ -189,7 +189,7 @@ We welcome feedback on governance process:
 A: Demonstrate consistent, high-quality contributions over time. Discuss with existing maintainers.
 
 **Q: Can I fork and maintain my own version?**
-A: Yes! MIT License permits this. We hope you'll contribute improvements back.
+A: Yes! Apache License 2.0 permits this. We hope you'll contribute improvements back.
 
 **Q: How are security issues handled?**
 A: See [SECURITY.md](../SECURITY.md) for confidential reporting process.

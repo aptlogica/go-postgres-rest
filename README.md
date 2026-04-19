@@ -21,7 +21,7 @@
 <a href="https://sonarcloud.io/dashboard?id=aptlogica_go-postgres-rest"><img src="https://sonarcloud.io/api/project_badges/measure?project=aptlogica_go-postgres-rest&metric=security_rating" alt="Security"></a>
 </p>
 <p align="center">
-  <img src="https://img.shields.io/badge/License-MIT-green?style==flat-square" alt="MIT License">
+  <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="Apache 2.0">
 </p>
 
 > A comprehensive PostgreSQL REST API framework and Golang backend framework for enterprise-grade applications. This production-ready Postgres API server and open source database API provides high-level abstractions for building scalable REST APIs with advanced query building, schema management, bulk operations, database migrations, and performance optimization.
@@ -179,4 +179,4 @@ See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
 
 ## License
 
-MIT License. Copyright (c) 2026 Aptlogica Technologies.
+Apache License 2.0. Copyright (c) 2026 Aptlogica Technologies. See [LICENSE](LICENSE) for details.

@@ -1,38 +1,7 @@
-# Legal Notices
+Aptlogica Technologies Private Limited
 
-## Third-Party Licenses
+This product includes software developed by Aptlogica Technologies Private Limited.
 
-This project includes software developed by third parties. The licenses for these dependencies are included below and in the `go.mod` file.
+Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
 
-For a complete list of dependencies and their licenses, run:
-```
-go mod graph
-```
-
-## License
-
-This project is licensed under the MIT License. See LICENSE file for details.
-
-## Attributions
-
-### PostgreSQL
-This project interfaces with PostgreSQL, which is licensed under the PostgreSQL License.
-- Website: https://www.postgresql.org/
-- License: https://www.postgresql.org/about/licence/
-
-### Go Standard Library
-Uses the Go programming language and its standard library.
-- Website: https://golang.org/
-- License: https://golang.org/LICENSE (BSD-style)
-
-### Key Dependencies
-
-The following third-party packages are used and respect their respective licenses:
-
-- github.com/lib/pq - PostgreSQL driver (BSD 3-Clause)
-- github.com/go-playground/validator - Validator library (MIT)
-- Standard Go library packages
-
-## Contributing
-
-By contributing to this project, you agree to abide by the terms and conditions set forth in the CONTRIBUTING.md file and license agreements.
+© 2026 Aptlogica Technologies Private Limited. All rights reserved.
