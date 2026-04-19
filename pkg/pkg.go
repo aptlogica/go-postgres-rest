@@ -3,7 +3,7 @@
 *
 * This file is part of software developed by Aptlogica Technologies Private Limited.
 *
-* Licensed under the MIT License. See the LICENSE file in the project root
+* Licensed under the Apache License, Version 2.0. See the LICENSE file in the project root
 * for full license information.
 *
 * Websites:
@@ -20,6 +20,7 @@ package pkg
 import (
 	"errors"
 	"fmt"
+
 	"github.com/aptlogica/go-postgres-rest/pkg/config"
 	"github.com/aptlogica/go-postgres-rest/pkg/database"
 	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
