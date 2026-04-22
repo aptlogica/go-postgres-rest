@@ -31,6 +31,7 @@
 
 **go-postgres-rest** is a Golang-based REST API service that provides a scalable and secure interface for interacting with PostgreSQL databases. It enables automatic exposure of database tables as REST endpoints, allowing applications to perform CRUD operations through simple HTTP requests. Designed for modern backend architectures, it helps developers rapidly build data-driven applications, internal tools, and low-code platforms while maintaining high performance and full control over database structure. This service simplifies backend development by transforming PostgreSQL into a flexible API layer that integrates seamlessly with web, mobile, and cloud applications.This service is designed to support modern data-driven applications, low-code platforms, and internal tools by simplifying database access through standardized HTTP APIs. It allows developers and teams to quickly build backend functionality while maintaining flexibility, performance, and full control over their data.
 
+**Part of SereniBase:** Powers the API generation layer of [SereniBase](https://github.com/aptlogica/sereni-base). Use standalone or as part of the full SereniBase ecosystem.
 
 ## Features
 
@@ -106,6 +107,10 @@
 ## Installation
 
 ```sh
+# Pin to a released version (recommended):
+go get github.com/aptlogica/go-postgres-rest@v1.0.0
+
+# Or get the latest module version:
 go get github.com/aptlogica/go-postgres-rest
 ```
 
