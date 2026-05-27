@@ -92,7 +92,13 @@ func ValidateTableName(name string) error {
 		return fmt.Errorf(tableNameLengthErrFmt, len(name))
 	}
 
-	// Support quoted identifiers (e.g., "public"."titanic-dataset")
+	// If this looks like a qualified name with an unquoted dot (schema.table),
+	// delegate to ValidateQualifiedTableName which validates each part separately.
+	if hasUnquotedDot(name) {
+		return ValidateQualifiedTableName(name)
+	}
+
+	// Support quoted identifiers (e.g., "survived-123" or "schema.table" as a single identifier)
 	if strings.HasPrefix(name, quoteChar) || strings.HasSuffix(name, quoteChar) {
 		if !(strings.HasPrefix(name, quoteChar) && strings.HasSuffix(name, quoteChar)) {
 			return fmt.Errorf(tableNameErrPrefix+mismatchedQuotesErr, name)
@@ -247,6 +253,21 @@ func SplitQualifiedName(qualifiedName string) ([]string, error) {
 
 	parts = append(parts, current.String())
 	return parts, nil
+}
+
+// hasUnquotedDot reports true if the string contains a '.' rune outside of double quotes.
+func hasUnquotedDot(s string) bool {
+	inQuotes := false
+	for _, r := range s {
+		if r == '"' {
+			inQuotes = !inQuotes
+			continue
+		}
+		if r == '.' && !inQuotes {
+			return true
+		}
+	}
+	return false
 }
 
 // ValidateQualifiedNameParts validates the split parts of a qualified name
