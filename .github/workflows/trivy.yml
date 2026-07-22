@@ -2,7 +2,7 @@ name: Security - Trivy
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, master, develop]
   pull_request:
 
 permissions:
@@ -28,6 +28,6 @@ jobs:
           severity: CRITICAL,HIGH
 
       - name: Upload results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-results.sarif
