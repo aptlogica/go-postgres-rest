@@ -97,7 +97,8 @@ func TestRepoWrappersDelegate(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	must(t, ddl.CreateCollection(tableReq))
 
-	mock.ExpectExec("ALTER TABLE public.test_table ADD COLUMN new_col TEXT").WillReturnResult(sqlmock.NewResult(0, 0))
+	// SECURITY: column identifier is now quoted.
+	mock.ExpectExec(`ALTER TABLE public.test_table ADD COLUMN "new_col" TEXT`).WillReturnResult(sqlmock.NewResult(0, 0))
 	must(t, ddl.AddField(testTable, models.AddColumnRequest{Column: models.ColumnDefinition{Name: "new_col", DataType: "TEXT"}}))
 
 	mock.ExpectExec("ALTER TABLE public.test_table DROP COLUMN old_col").WillReturnResult(sqlmock.NewResult(0, 0))

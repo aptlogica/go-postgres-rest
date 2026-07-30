@@ -78,7 +78,8 @@ func TestDDLWrapperDelegationFromDatabasePackage(t *testing.T) {
 	if err := ddl.CreateCollection(models.CreateTableRequest{Name: tableName, Columns: []models.ColumnDefinition{{Name: "id", DataType: "SERIAL", NotNull: true}}, PrimaryKey: []string{"id"}}); err != nil {
 		t.Fatalf("CreateCollection: %v", err)
 	}
-	mock.ExpectExec("ALTER TABLE public.t ADD COLUMN col TEXT").WillReturnResult(sqlmock.NewResult(0, 0))
+	// SECURITY: column identifier is now quoted.
+	mock.ExpectExec(`ALTER TABLE public.t ADD COLUMN "col" TEXT`).WillReturnResult(sqlmock.NewResult(0, 0))
 	if err := ddl.AddField(tableName, models.AddColumnRequest{Column: models.ColumnDefinition{Name: "col", DataType: "TEXT"}}); err != nil {
 		t.Fatalf("AddField: %v", err)
 	}
