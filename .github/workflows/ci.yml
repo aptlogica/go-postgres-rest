@@ -3,7 +3,7 @@ permissions:
   contents: read
 on:
   push:
-    branches: [main, develop]
+    branches: [main, master, develop]
   pull_request:
 jobs:
   test:
@@ -45,7 +45,7 @@ jobs:
           DB_PASSWORD: ${{ secrets.POSTGRES_PASSWORD || 'test-db-secure' }}
           DB_NAME: testdb
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f
         with:
           files: ./coverage.out
           flags: unittests
@@ -58,7 +58,7 @@ jobs:
           go tool cover -html=coverage.out -o coverage.html
       - name: Archive coverage report
         if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: coverage-report
           path: coverage.html
