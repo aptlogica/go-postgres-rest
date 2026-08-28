@@ -16,6 +16,7 @@ import (
 
 	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
 	"github.com/aptlogica/go-postgres-rest/pkg/models"
+	"github.com/aptlogica/go-postgres-rest/pkg/utils"
 
 	"strings"
 
@@ -83,6 +84,18 @@ const (
 	selectKeyword          = "SELECT "
 	dropConstraintQueryFmt = "ALTER TABLE %s DROP CONSTRAINT IF EXISTS %s"
 )
+
+func stripOuterQuotes(name string) string {
+	name = strings.TrimSpace(name)
+	if len(name) >= 2 && strings.HasPrefix(name, `"`) && strings.HasSuffix(name, `"`) {
+		return name[1 : len(name)-1]
+	}
+	return name
+}
+
+func safeQuoteIdentifier(name string) string {
+	return pq.QuoteIdentifier(stripOuterQuotes(name))
+}
 
 // ValidateTableName ensures table name is safe for SQL
 func ValidateTableName(name string) error {
@@ -215,7 +228,7 @@ func ValidateAndFormatColumn(name string) (string, error) {
 	if err := ValidateColumnName(name); err != nil {
 		return "", err
 	}
-	return pq.QuoteIdentifier(name), nil // Quote regular column names
+	return safeQuoteIdentifier(name), nil // Quote regular column names
 }
 
 // SplitQualifiedName splits a qualified table name on dots while respecting quoted identifiers
@@ -334,10 +347,24 @@ func (postgresDbService *PostgresDbService) AddField(collection string, req mode
 		return fmt.Errorf(invalidColumnNameErrFmt, err)
 	}
 
-	var query strings.Builder
+	// SECURITY: sanitize DataType, DefaultValue, and Check to prevent DDL injection (CRIT-01)
+	sanitized, err := utils.SanitizeColumnDDL(
+		req.Column.Name,
+		req.Column.DataType,
+		req.Column.DefaultValue,
+		req.Column.Check,
+	)
+	if err != nil {
+		return fmt.Errorf("invalid column definition: %w", err)
+	}
 
+	// Quote identifiers via lib/pq (handles reserved words and special chars).
+	quotedTable := collection // already validated by ValidateQualifiedTableName
+	quotedCol := safeQuoteIdentifier(req.Column.Name)
+
+	var query strings.Builder
 	query.WriteString(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s",
-		collection, req.Column.Name, req.Column.DataType))
+		quotedTable, quotedCol, sanitized.SafeType))
 
 	if req.Column.NotNull {
 		query.WriteString(" " + notNullClause)
@@ -347,15 +374,15 @@ func (postgresDbService *PostgresDbService) AddField(collection string, req mode
 		query.WriteString(" " + uniqueClause)
 	}
 
-	if req.Column.DefaultValue != nil {
-		query.WriteString(" " + defaultClause + " " + *req.Column.DefaultValue)
+	if sanitized.SafeDefault != "" {
+		query.WriteString(" " + defaultClause + " " + sanitized.SafeDefault)
 	}
 
-	if req.Column.Check != nil {
-		query.WriteString(" " + checkClause + " (" + *req.Column.Check + ")")
+	if sanitized.SafeCheck != "" {
+		query.WriteString(" " + checkClause + " (" + sanitized.SafeCheck + ")")
 	}
 
-	_, err := postgresDbService.db.Exec(query.String())
+	_, err = postgresDbService.db.Exec(query.String())
 	if err != nil {
 		return fmt.Errorf("failed to add column: %w", err)
 	}
@@ -430,30 +457,46 @@ func (postgresDbService *PostgresDbService) ModifyColumn(tableName string, req m
 		return fmt.Errorf(invalidColumnNameErrFmt, err)
 	}
 
+	// Quote identifiers.
+	quotedTable := tableName // already validated
+	quotedCol := safeQuoteIdentifier(req.ColumnName)
+
 	var queries []string
 
+	// SECURITY: validate new data type against allowlist (CRIT-01)
 	if req.NewDataType != "" {
+		safeT, err := utils.SafeType(req.NewDataType)
+		if err != nil {
+			return fmt.Errorf("invalid new data type: %w", err)
+		}
 		queries = append(queries,
-			fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s TYPE %s USING %s::%s", tableName, req.ColumnName, req.NewDataType, req.ColumnName, req.NewDataType))
+			fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s TYPE %s USING %s::%s",
+				quotedTable, quotedCol, safeT, quotedCol, safeT))
 	}
+
 	if req.SetNotNull != nil {
 		if *req.SetNotNull {
 			queries = append(queries, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s SET %s",
-				tableName, req.ColumnName, notNullClause))
+				quotedTable, quotedCol, notNullClause))
 		} else {
 			queries = append(queries, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s DROP %s",
-				tableName, req.ColumnName, notNullClause))
+				quotedTable, quotedCol, notNullClause))
 		}
 	}
 
+	// SECURITY: validate SET DEFAULT value (CRIT-01)
 	if req.SetDefault != nil {
+		safeDef, err := utils.SafeDefaultLiteral(*req.SetDefault)
+		if err != nil {
+			return fmt.Errorf("invalid default value: %w", err)
+		}
 		queries = append(queries, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s SET %s %s",
-			tableName, req.ColumnName, defaultClause, *req.SetDefault))
+			quotedTable, quotedCol, defaultClause, safeDef))
 	}
 
 	if req.DropDefault {
 		queries = append(queries, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s DROP %s",
-			tableName, req.ColumnName, defaultClause))
+			quotedTable, quotedCol, defaultClause))
 	}
 
 	for _, query := range queries {
@@ -532,7 +575,10 @@ func (postgresDbService *PostgresDbService) CreateCollection(req models.CreateTa
 	query.WriteString(fmt.Sprintf("CREATE TABLE %s (", req.Name))
 
 	// Add columns
-	columnDefs := postgresDbService.BuildColumnDefinitions(req.Columns)
+	columnDefs, err := postgresDbService.BuildColumnDefinitions(req.Columns)
+	if err != nil {
+		return err
+	}
 	query.WriteString(strings.Join(columnDefs, ", "))
 
 	// Add primary key
@@ -548,7 +594,7 @@ func (postgresDbService *PostgresDbService) CreateCollection(req models.CreateTa
 
 	query.WriteString(")")
 
-	_, err := postgresDbService.db.Exec(query.String())
+	_, err = postgresDbService.db.Exec(query.String())
 	if err != nil {
 		return fmt.Errorf("failed to create table: %w", err)
 	}
@@ -650,14 +696,21 @@ func (postgresDbService *PostgresDbService) validateIndexesForCreation(indexes [
 	return nil
 }
 
-// BuildColumnDefinitions builds SQL column definitions from ColumnDefinition slice
-func (postgresDbService *PostgresDbService) BuildColumnDefinitions(columns []models.ColumnDefinition) []string {
+// BuildColumnDefinitions builds SQL column definitions from ColumnDefinition slice.
+// SECURITY: DataType, DefaultValue, and Check are validated via utils.SanitizeColumnDDL
+// before embedding to prevent DDL injection (CRIT-01).
+func (postgresDbService *PostgresDbService) BuildColumnDefinitions(columns []models.ColumnDefinition) ([]string, error) {
 	columnDefs := make([]string, 0, len(columns))
 	for _, col := range columns {
+		sanitized, err := utils.SanitizeColumnDDL(col.Name, col.DataType, col.DefaultValue, col.Check)
+		if err != nil {
+			return nil, err
+		}
+
 		var colSb strings.Builder
 		colSb.WriteString(col.Name)
 		colSb.WriteString(" ")
-		colSb.WriteString(col.DataType)
+		colSb.WriteString(sanitized.SafeType)
 
 		if col.NotNull {
 			colSb.WriteString(" " + notNullClause)
@@ -667,20 +720,20 @@ func (postgresDbService *PostgresDbService) BuildColumnDefinitions(columns []mod
 			colSb.WriteString(" " + uniqueClause)
 		}
 
-		if col.DefaultValue != nil {
+		if sanitized.SafeDefault != "" {
 			colSb.WriteString(" " + defaultClause + " ")
-			colSb.WriteString(*col.DefaultValue)
+			colSb.WriteString(sanitized.SafeDefault)
 		}
 
-		if col.Check != nil {
+		if sanitized.SafeCheck != "" {
 			colSb.WriteString(" " + checkClause + " (")
-			colSb.WriteString(*col.Check)
+			colSb.WriteString(sanitized.SafeCheck)
 			colSb.WriteString(")")
 		}
 
 		columnDefs = append(columnDefs, colSb.String())
 	}
-	return columnDefs
+	return columnDefs, nil
 }
 
 // BuildForeignKeyDefinitions builds SQL foreign key constraint definitions
@@ -748,7 +801,7 @@ func (postgresDbService *PostgresDbService) buildFullTextSearch(fts models.FullT
 	quotedCols := make([]string, 0, len(fts.Columns))
 	for _, col := range fts.Columns {
 		if err := ValidateColumnName(col); err == nil {
-			quotedCols = append(quotedCols, pq.QuoteIdentifier(col))
+			quotedCols = append(quotedCols, safeQuoteIdentifier(col))
 		}
 	}
 
@@ -876,7 +929,7 @@ func (postgresDbService *PostgresDbService) BuildJSONBCondition(filter models.Qu
 	}
 
 	// Build JSONB path expression: column->'key1'->'key2'->>'final_key'
-	quotedCol := pq.QuoteIdentifier(filter.Column)
+	quotedCol := safeQuoteIdentifier(filter.Column)
 	pathExpr := quotedCol
 
 	// Navigate through the path, using ->> for the last key to extract text
@@ -1037,7 +1090,7 @@ func ValidateAndQuoteColumnList(columns []string) ([]string, error) {
 		}
 
 		// Quote the column for safe SQL
-		quotedCols = append(quotedCols, pq.QuoteIdentifier(col))
+		quotedCols = append(quotedCols, safeQuoteIdentifier(col))
 	}
 
 	return quotedCols, nil
@@ -1065,7 +1118,7 @@ func ValidateAndQuoteOrderByList(orderByList []string) ([]string, error) {
 		}
 
 		// Rebuild with quoted column
-		quotedParts := []string{pq.QuoteIdentifier(colName)}
+		quotedParts := []string{safeQuoteIdentifier(colName)}
 
 		// Add direction (ASC/DESC) if present, validated against whitelist
 		if len(parts) > 1 {
@@ -1128,7 +1181,7 @@ func ParseSelectAliases(selectCols []string) map[string]string {
 			}
 		}
 		if err := ValidateColumnName(expr); err == nil {
-			aliasMap[alias] = pq.QuoteIdentifier(expr)
+			aliasMap[alias] = safeQuoteIdentifier(expr)
 			continue
 		}
 		// fallback: store normalized expression as-is
@@ -1237,7 +1290,7 @@ func (postgresDbService *PostgresDbService) BuildAggregateParts(aggregates []mod
 		// Validate aggregate column name for safety
 		column := agg.Column
 		if err := ValidateColumnName(agg.Column); err == nil {
-			column = pq.QuoteIdentifier(agg.Column)
+			column = safeQuoteIdentifier(agg.Column)
 		}
 
 		// Validate aggregate function is safe
@@ -1247,7 +1300,7 @@ func (postgresDbService *PostgresDbService) BuildAggregateParts(aggregates []mod
 			if agg.Alias != "" {
 				// Validate alias column name
 				if err := ValidateColumnName(agg.Alias); err == nil {
-					aggStr += " AS " + pq.QuoteIdentifier(agg.Alias)
+					aggStr += " AS " + safeQuoteIdentifier(agg.Alias)
 				}
 			}
 			aggParts = append(aggParts, aggStr)
@@ -1288,7 +1341,7 @@ func (postgresDbService *PostgresDbService) BuildSelectColumnParts(selectCols []
 			if err := ValidateJSONBPath(exprNorm); err == nil {
 				if alias != "" {
 					if ValidateColumnName(alias) == nil {
-						parts = append(parts, fmt.Sprintf("%s AS %s", exprNorm, pq.QuoteIdentifier(alias)))
+						parts = append(parts, fmt.Sprintf("%s AS %s", exprNorm, safeQuoteIdentifier(alias)))
 					} else {
 						parts = append(parts, fmt.Sprintf("%s AS %s", exprNorm, alias))
 					}
@@ -1302,10 +1355,10 @@ func (postgresDbService *PostgresDbService) BuildSelectColumnParts(selectCols []
 
 		// simple column
 		if err := ValidateColumnName(expr); err == nil {
-			colQuoted := pq.QuoteIdentifier(expr)
+			colQuoted := safeQuoteIdentifier(expr)
 			if alias != "" {
 				if ValidateColumnName(alias) == nil {
-					parts = append(parts, fmt.Sprintf("%s AS %s", colQuoted, pq.QuoteIdentifier(alias)))
+					parts = append(parts, fmt.Sprintf("%s AS %s", colQuoted, safeQuoteIdentifier(alias)))
 				} else {
 					parts = append(parts, fmt.Sprintf("%s AS %s", colQuoted, alias))
 				}
@@ -1318,7 +1371,7 @@ func (postgresDbService *PostgresDbService) BuildSelectColumnParts(selectCols []
 		// function or arbitrary expression - keep as-is but attach alias if present
 		if alias != "" {
 			if ValidateColumnName(alias) == nil {
-				parts = append(parts, fmt.Sprintf("%s AS %s", expr, pq.QuoteIdentifier(alias)))
+				parts = append(parts, fmt.Sprintf("%s AS %s", expr, safeQuoteIdentifier(alias)))
 			} else {
 				parts = append(parts, fmt.Sprintf("%s AS %s", expr, alias))
 			}
@@ -1408,7 +1461,7 @@ func (postgresDbService *PostgresDbService) BuildWhereClause(params models.Query
 	// Handle range queries - validate column name
 	if params.Range != nil {
 		if err := ValidateColumnName(params.Range.Column); err == nil {
-			condition := fmt.Sprintf("%s BETWEEN $%d AND $%d", pq.QuoteIdentifier(params.Range.Column), argCounter, argCounter+1)
+			condition := fmt.Sprintf("%s BETWEEN $%d AND $%d", safeQuoteIdentifier(params.Range.Column), argCounter, argCounter+1)
 			whereConditions = append(whereConditions, condition)
 			args = append(args, params.Range.From, params.Range.To)
 			argCounter += 2
@@ -1473,7 +1526,7 @@ func (postgresDbService *PostgresDbService) BuildGroupByClauseWithSelect(groupBy
 
 		// Regular column name
 		if err := ValidateColumnName(gTrim); err == nil {
-			parts = append(parts, pq.QuoteIdentifier(gTrim))
+			parts = append(parts, safeQuoteIdentifier(gTrim))
 			continue
 		}
 
@@ -2802,9 +2855,15 @@ func (r *PostgresDbService) CreateJoinTable(relationship *models.RelationshipDef
 		fmt.Sprintf("%s UUID %s", *relationship.TargetJoinColumn, notNullClause),
 	}
 
-	// Additional columns with full schema
+	// Additional columns with full schema.
+	// SECURITY: sanitize DataType, DefaultValue, and Check (CRIT-01).
 	for _, col := range joinTable.AdditionalColumns {
-		columnDef := fmt.Sprintf("%s %s", col.Name, col.DataType)
+		sanitized, err := utils.SanitizeColumnDDL(col.Name, col.DataType, col.DefaultValue, col.Check)
+		if err != nil {
+			return fmt.Errorf("invalid additional column %q: %w", col.Name, err)
+		}
+
+		columnDef := fmt.Sprintf("%s %s", col.Name, sanitized.SafeType)
 
 		if col.NotNull {
 			columnDef += " " + notNullClause
@@ -2814,12 +2873,12 @@ func (r *PostgresDbService) CreateJoinTable(relationship *models.RelationshipDef
 			columnDef += " " + uniqueClause
 		}
 
-		if col.DefaultValue != nil {
-			columnDef += fmt.Sprintf(" %s '%s'", defaultClause, *col.DefaultValue)
+		if sanitized.SafeDefault != "" {
+			columnDef += " " + defaultClause + " " + sanitized.SafeDefault
 		}
 
-		if col.Check != nil {
-			columnDef += fmt.Sprintf(" %s (%s)", checkClause, *col.Check)
+		if sanitized.SafeCheck != "" {
+			columnDef += fmt.Sprintf(" %s (%s)", checkClause, sanitized.SafeCheck)
 		}
 
 		columns = append(columns, columnDef)

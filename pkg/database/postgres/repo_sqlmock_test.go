@@ -634,21 +634,22 @@ func TestColumnMutationHelpers(t *testing.T) {
 
 	setDefault := "0"
 	setNotNull := true
-	mock.ExpectExec(`ALTER TABLE public\.users ALTER COLUMN age TYPE BIGINT USING age::BIGINT`).WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec(`ALTER TABLE public\.users ALTER COLUMN age SET NOT NULL`).WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec(`ALTER TABLE public\.users ALTER COLUMN age SET DEFAULT 0`).WillReturnResult(sqlmock.NewResult(0, 1))
+	// SECURITY: column names are now quoted, types are canonical.
+	mock.ExpectExec(`ALTER TABLE public\.users ALTER COLUMN "age" TYPE BIGINT USING "age"::BIGINT`).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`ALTER TABLE public\.users ALTER COLUMN "age" SET NOT NULL`).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`ALTER TABLE public\.users ALTER COLUMN "age" SET DEFAULT 0`).WillReturnResult(sqlmock.NewResult(0, 1))
 	if err := svc.ModifyColumn("public.users", models.ModifyColumnRequest{ColumnName: "age", NewDataType: "BIGINT", SetNotNull: &setNotNull, SetDefault: &setDefault}); err != nil {
 		t.Fatalf("ModifyColumn failed: %v", err)
 	}
 
 	setNotNullFalse := false
-	mock.ExpectExec(`ALTER TABLE public\.users ALTER COLUMN age DROP NOT NULL`).WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec(`ALTER TABLE public\.users ALTER COLUMN age DROP DEFAULT`).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`ALTER TABLE public\.users ALTER COLUMN "age" DROP NOT NULL`).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`ALTER TABLE public\.users ALTER COLUMN "age" DROP DEFAULT`).WillReturnResult(sqlmock.NewResult(0, 1))
 	if err := svc.ModifyColumn("public.users", models.ModifyColumnRequest{ColumnName: "age", SetNotNull: &setNotNullFalse, DropDefault: true}); err != nil {
 		t.Fatalf("ModifyColumn drop branches failed: %v", err)
 	}
 
-	mock.ExpectExec(`ALTER TABLE public\.users ALTER COLUMN missing SET NOT NULL`).WillReturnError(fmt.Errorf("boom"))
+	mock.ExpectExec(`ALTER TABLE public\.users ALTER COLUMN "missing" SET NOT NULL`).WillReturnError(fmt.Errorf("boom"))
 	if err := svc.ModifyColumn("public.users", models.ModifyColumnRequest{ColumnName: "missing", SetNotNull: &setNotNull}); err == nil {
 		t.Fatalf("expected error from failing alter column")
 	}
@@ -843,7 +844,8 @@ func TestExecuteQueryAndCRUD(t *testing.T) {
 	rel.OnDelete = "CASCADE"
 	rel.OnUpdate = "CASCADE"
 	mock.ExpectExec("CREATE TABLE IF NOT EXISTS user_roles").WillReturnResult(sqlmock.NewResult(0, 0))
-	if err := svc.CreateJoinTable(rel, models.CreateJoinTableRequest{AdditionalColumns: []models.ColumnDefinition{{Name: "extra", DataType: "TEXT", DefaultValue: ptr("val")}}}); err != nil {
+	// SECURITY: default value for additional columns must be a valid literal; use quoted string.
+	if err := svc.CreateJoinTable(rel, models.CreateJoinTableRequest{AdditionalColumns: []models.ColumnDefinition{{Name: "extra", DataType: "TEXT", DefaultValue: ptr("'val'")}}  }); err != nil {
 		t.Fatalf("create join table failed: %v", err)
 	}
 
@@ -966,14 +968,15 @@ func TestDDLAndListCollections(t *testing.T) {
 		t.Fatalf("create collection failed: %v", err)
 	}
 
-	mock.ExpectExec("ALTER TABLE public.test_table ADD COLUMN new_col TEXT").WillReturnResult(sqlmock.NewResult(0, 0))
+	// SECURITY: column identifiers are quoted; INT is canonical; default is numeric literal.
+	mock.ExpectExec(`ALTER TABLE public.test_table ADD COLUMN "new_col" TEXT`).WillReturnResult(sqlmock.NewResult(0, 0))
 	if err := svc.AddField("public.test_table", models.AddColumnRequest{Column: models.ColumnDefinition{Name: "new_col", DataType: "TEXT"}}); err != nil {
 		t.Fatalf("add field failed: %v", err)
 	}
 	// AddField with constraints
 	check := "age > 0"
 	def := "18"
-	mock.ExpectExec(regexp.QuoteMeta("ALTER TABLE public.test_table ADD COLUMN age INT NOT NULL UNIQUE DEFAULT 18 CHECK (" + check + ")")).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec(regexp.QuoteMeta(`ALTER TABLE public.test_table ADD COLUMN "age" INTEGER NOT NULL UNIQUE DEFAULT 18 CHECK (` + check + `)`)).WillReturnResult(sqlmock.NewResult(0, 0))
 	if err := svc.AddField("public.test_table", models.AddColumnRequest{Column: models.ColumnDefinition{Name: "age", DataType: "INT", NotNull: true, Unique: true, DefaultValue: &def, Check: &check}}); err != nil {
 		t.Fatalf("add field with constraints failed: %v", err)
 	}
@@ -983,7 +986,8 @@ func TestDDLAndListCollections(t *testing.T) {
 		t.Fatalf("alter drop failed: %v", err)
 	}
 
-	mock.ExpectExec("ALTER TABLE public.test_table ALTER COLUMN mod_col TYPE TEXT USING mod_col::TEXT").WillReturnResult(sqlmock.NewResult(0, 0))
+	// SECURITY: column identifiers are quoted in ALTER COLUMN ... TYPE.
+	mock.ExpectExec(`ALTER TABLE public.test_table ALTER COLUMN "mod_col" TYPE TEXT USING "mod_col"::TEXT`).WillReturnResult(sqlmock.NewResult(0, 0))
 	if err := svc.AlterCollection("public.test_table", models.AlterTableRequest{Action: "modify_column", Data: models.ModifyColumnRequest{ColumnName: "mod_col", NewDataType: "TEXT"}}); err != nil {
 		t.Fatalf("alter modify failed: %v", err)
 	}
@@ -1212,7 +1216,10 @@ func TestBuildColumnDefinitions(t *testing.T) {
 		{Name: "age", DataType: "INT", NotNull: true, Unique: true, Check: stringPtr("age > 0")},
 	}
 
-	columnDefs := svc.BuildColumnDefinitions(columns)
+	columnDefs, err := svc.BuildColumnDefinitions(columns)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if len(columnDefs) != 3 {
 		t.Fatalf("expected 3 column definitions, got %d", len(columnDefs))
@@ -1221,7 +1228,8 @@ func TestBuildColumnDefinitions(t *testing.T) {
 	expected := []string{
 		"id SERIAL NOT NULL",
 		"name TEXT DEFAULT default",
-		"age INT NOT NULL UNIQUE CHECK (age > 0)",
+		// SECURITY: INT is canonicalized to INTEGER; CHECK expression is validated.
+		"age INTEGER NOT NULL UNIQUE CHECK (age > 0)",
 	}
 
 	for i, expectedDef := range expected {
