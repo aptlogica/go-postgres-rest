@@ -1330,7 +1330,7 @@ func (postgresDbService *PostgresDbService) BuildSelectColumnParts(selectCols []
 
 // formatWithAlias appends " AS alias" to base when alias is set, quoting the alias
 // when it is itself a valid column name and leaving it as-is otherwise.
-func formatWithAlias(base string, alias string) string {
+func formatWithAlias(base, alias string) string {
 	if alias == "" {
 		return base
 	}
