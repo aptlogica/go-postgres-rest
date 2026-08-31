@@ -8,10 +8,11 @@ package postgres
 import (
 	"database/sql"
 	"fmt"
+
 	"github.com/aptlogica/go-postgres-rest/pkg/config"
 	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
 
-	_ "github.com/lib/pq"
+	_ "github.com/lib/pq" // registers the "postgres" driver with database/sql via its init()
 )
 
 // allow tests to stub sql.Open/Ping

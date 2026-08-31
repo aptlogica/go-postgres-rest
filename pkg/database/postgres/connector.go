@@ -11,7 +11,7 @@ import (
 	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
 	"time"
 
-	_ "github.com/lib/pq"
+	_ "github.com/lib/pq" // registers the "postgres" driver with database/sql via its init()
 )
 
 // Connector defines the interface for SQL database connections

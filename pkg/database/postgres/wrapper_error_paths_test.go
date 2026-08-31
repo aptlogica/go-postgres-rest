@@ -77,7 +77,8 @@ func TestWrapperErrorPaths(t *testing.T) {
 		t.Fatalf("CreateCollection err: %v", err)
 	}
 
-	mock.ExpectExec("ALTER TABLE public.demo ADD COLUMN col TEXT").WillReturnResult(sqlmock.NewResult(0, 0))
+	// SECURITY: column identifier is now quoted in ALTER TABLE ... ADD COLUMN.
+	mock.ExpectExec(`ALTER TABLE public.demo ADD COLUMN "col" TEXT`).WillReturnResult(sqlmock.NewResult(0, 0))
 	if err := ddl.AddField("public.demo", models.AddColumnRequest{Column: models.ColumnDefinition{Name: "col", DataType: "TEXT"}}); err != nil {
 		t.Fatalf("AddField err: %v", err)
 	}

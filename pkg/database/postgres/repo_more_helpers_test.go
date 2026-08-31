@@ -115,9 +115,10 @@ func TestModifyColumnBranches(t *testing.T) {
 	svc := postgres.NewPostgresDbServiceInstance(db)
 
 	// SetNotNull true, SetDefault provided
-	mock.ExpectExec("ALTER TABLE tbl ALTER COLUMN col TYPE TEXT USING col::TEXT").WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec("ALTER TABLE tbl ALTER COLUMN col SET NOT NULL").WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec("ALTER TABLE tbl ALTER COLUMN col SET DEFAULT 1").WillReturnResult(sqlmock.NewResult(0, 1))
+	// SECURITY: identifiers are now quoted; type is canonical; default is validated.
+	mock.ExpectExec(`ALTER TABLE tbl ALTER COLUMN "col" TYPE TEXT USING "col"::TEXT`).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`ALTER TABLE tbl ALTER COLUMN "col" SET NOT NULL`).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`ALTER TABLE tbl ALTER COLUMN "col" SET DEFAULT 1`).WillReturnResult(sqlmock.NewResult(0, 1))
 
 	setNotNull := true
 	setDefault := "1"
@@ -127,8 +128,8 @@ func TestModifyColumnBranches(t *testing.T) {
 	}
 
 	// SetNotNull false, DropDefault
-	mock.ExpectExec("ALTER TABLE tbl ALTER COLUMN col DROP NOT NULL").WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec("ALTER TABLE tbl ALTER COLUMN col DROP DEFAULT").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`ALTER TABLE tbl ALTER COLUMN "col" DROP NOT NULL`).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(`ALTER TABLE tbl ALTER COLUMN "col" DROP DEFAULT`).WillReturnResult(sqlmock.NewResult(0, 1))
 
 	setNotNull = false
 	req = models.ModifyColumnRequest{ColumnName: "col", SetNotNull: &setNotNull, DropDefault: true}
@@ -150,13 +151,14 @@ func TestCreateCollectionOptions(t *testing.T) {
 
 	svc := postgres.NewPostgresDbServiceInstance(db)
 
+	// SECURITY: INT is canonicalized to INTEGER by the type allowlist.
 	req := models.CreateTableRequest{
 		Name:       "tbl",
 		Columns:    []models.ColumnDefinition{{Name: "id", DataType: "INT"}},
 		PrimaryKey: []string{"id"},
 	}
 
-	mock.ExpectExec(regexp.QuoteMeta("CREATE TABLE tbl (id INT, PRIMARY KEY (id))")).
+	mock.ExpectExec(regexp.QuoteMeta("CREATE TABLE tbl (id INTEGER, PRIMARY KEY (id))")).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	if err := svc.CreateCollection(req); err != nil {

@@ -151,7 +151,7 @@ func TestNewDatabaseServiceWithInit_HappyPath(t *testing.T) {
 	}
 }
 
-// connectorFactoryFunc adapts a function to the ConnectionFactory interface for testing
+// connectorFactoryFunc adapts a function to the ConnectionCreator interface for testing
 type connectorFactoryFunc func(cfg *config.DatabaseConfig) (interfaces.DB, error)
 
 func (f connectorFactoryFunc) CreateConnection(cfg *config.DatabaseConfig) (interfaces.DB, error) {
