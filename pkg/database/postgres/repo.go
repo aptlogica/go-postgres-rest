@@ -929,14 +929,21 @@ func (postgresDbService *PostgresDbService) BuildJSONBCondition(filter models.Qu
 	}
 
 	// Build JSONB path expression: column->'key1'->'key2'->>'final_key'
-	quotedCol := safeQuoteIdentifier(filter.Column)
-	pathExpr := quotedCol
+	pathExpr := buildJSONBPathExpression(filter.Column, filter.JSONPath)
+
+	// Now build the condition using the path expression
+	return postgresDbService.buildJSONBOperatorCondition(pathExpr, filter, argCounter)
+}
+
+// buildJSONBPathExpression builds a JSONB path expression: column->'key1'->'key2'->>'final_key'
+// Intermediate keys navigate as JSONB (->), the final key extracts as text (->>).
+func buildJSONBPathExpression(column string, jsonPath []string) string {
+	pathExpr := safeQuoteIdentifier(column)
 
 	// Navigate through the path, using ->> for the last key to extract text
-	for i, key := range filter.JSONPath {
+	for i, key := range jsonPath {
 		quotedKey := fmt.Sprintf("'%s'", strings.ReplaceAll(key, "'", "''")) // SQL escape single quotes
-		if i == len(filter.JSONPath)-1 {
-			// Last key - use ->> to extract as text for comparison
+		if i == len(jsonPath)-1 {
 			pathExpr += fmt.Sprintf(" ->> %s", quotedKey)
 		} else {
 			// Intermediate keys - use -> to navigate as JSONB
@@ -945,77 +952,65 @@ func (postgresDbService *PostgresDbService) BuildJSONBCondition(filter models.Qu
 	}
 
 	// Now build the condition using the path expression
+	return pathExpr
+}
+
+// buildJSONBListCondition builds IN/NOT IN conditions for a JSONB path expression
+func (postgresDbService *PostgresDbService) buildJSONBListCondition(pathExpr string, value interface{}, argCounter int, negate bool) (string, []interface{}, int) {
+	values, ok := postgresDbService.ToInterfaceSlice(value)
+	if !ok || len(values) == 0 {
+		return "", nil, argCounter
+	}
+
+	placeholders := make([]string, len(values))
+	args := make([]interface{}, 0, len(values))
+	for i, val := range values {
+		placeholders[i] = fmt.Sprintf("$%d", argCounter)
+		args = append(args, val)
+		argCounter++
+	}
+
+	keyword := "IN"
+	if negate {
+		keyword = "NOT IN"
+	}
+	condition := fmt.Sprintf("%s %s (%s)", pathExpr, keyword, strings.Join(placeholders, ", "))
+	return condition, args, argCounter
+}
+
+// buildJSONBOperatorCondition applies the filter operator to a JSONB path expression
+func (postgresDbService *PostgresDbService) buildJSONBOperatorCondition(pathExpr string, filter models.QueryFilter, argCounter int) (string, []interface{}, int) {
 	operator := strings.ToLower(filter.Operator)
-	var condition string
-	var args []interface{}
 
 	switch operator {
 	case "eq", "=":
-		condition = fmt.Sprintf("%s = $%d", pathExpr, argCounter)
-		args = []interface{}{filter.Value}
-		argCounter++
+		return fmt.Sprintf("%s = $%d", pathExpr, argCounter), []interface{}{filter.Value}, argCounter + 1
 	case "neq", "!=", "<>":
-		condition = fmt.Sprintf("%s != $%d", pathExpr, argCounter)
-		args = []interface{}{filter.Value}
-		argCounter++
+		return fmt.Sprintf("%s != $%d", pathExpr, argCounter), []interface{}{filter.Value}, argCounter + 1
 	case "gt", ">":
-		condition = fmt.Sprintf("%s > $%d", pathExpr, argCounter)
-		args = []interface{}{filter.Value}
-		argCounter++
+		return fmt.Sprintf("%s > $%d", pathExpr, argCounter), []interface{}{filter.Value}, argCounter + 1
 	case "gte", ">=":
-		condition = fmt.Sprintf("%s >= $%d", pathExpr, argCounter)
-		args = []interface{}{filter.Value}
-		argCounter++
+		return fmt.Sprintf("%s >= $%d", pathExpr, argCounter), []interface{}{filter.Value}, argCounter + 1
 	case "lt", "<":
-		condition = fmt.Sprintf("%s < $%d", pathExpr, argCounter)
-		args = []interface{}{filter.Value}
-		argCounter++
+		return fmt.Sprintf("%s < $%d", pathExpr, argCounter), []interface{}{filter.Value}, argCounter + 1
 	case "lte", "<=":
-		condition = fmt.Sprintf("%s <= $%d", pathExpr, argCounter)
-		args = []interface{}{filter.Value}
-		argCounter++
+		return fmt.Sprintf("%s <= $%d", pathExpr, argCounter), []interface{}{filter.Value}, argCounter + 1
 	case "like":
-		condition = fmt.Sprintf("%s LIKE $%d", pathExpr, argCounter)
-		args = []interface{}{filter.Value}
-		argCounter++
+		return fmt.Sprintf("%s LIKE $%d", pathExpr, argCounter), []interface{}{filter.Value}, argCounter + 1
 	case "ilike":
-		condition = fmt.Sprintf("%s ILIKE $%d", pathExpr, argCounter)
-		args = []interface{}{filter.Value}
-		argCounter++
+		return fmt.Sprintf("%s ILIKE $%d", pathExpr, argCounter), []interface{}{filter.Value}, argCounter + 1
 	case "in":
-		values, ok := postgresDbService.ToInterfaceSlice(filter.Value)
-		if !ok || len(values) == 0 {
-			return "", nil, argCounter
-		}
-		placeholders := make([]string, len(values))
-		for i, val := range values {
-			placeholders[i] = fmt.Sprintf("$%d", argCounter)
-			args = append(args, val)
-			argCounter++
-		}
-		condition = fmt.Sprintf("%s IN (%s)", pathExpr, strings.Join(placeholders, ", "))
+		return postgresDbService.buildJSONBListCondition(pathExpr, filter.Value, argCounter, false)
 	case "not_in":
-		values, ok := postgresDbService.ToInterfaceSlice(filter.Value)
-		if !ok || len(values) == 0 {
-			return "", nil, argCounter
-		}
-		placeholders := make([]string, len(values))
-		for i, val := range values {
-			placeholders[i] = fmt.Sprintf("$%d", argCounter)
-			args = append(args, val)
-			argCounter++
-		}
-		condition = fmt.Sprintf("%s NOT IN (%s)", pathExpr, strings.Join(placeholders, ", "))
+		return postgresDbService.buildJSONBListCondition(pathExpr, filter.Value, argCounter, true)
 	case "is_null":
-		condition = fmt.Sprintf("%s IS NULL", pathExpr)
+		return fmt.Sprintf("%s IS NULL", pathExpr), nil, argCounter
 	case "is_not_null":
-		condition = fmt.Sprintf("%s IS NOT NULL", pathExpr)
+		return fmt.Sprintf("%s IS NOT NULL", pathExpr), nil, argCounter
 	default:
 		// Unknown operator
 		return "", nil, argCounter
 	}
-
-	return condition, args, argCounter
 }
 
 func (postgresDbService *PostgresDbService) BuildFilterCondition(filter models.QueryFilter, argCounter int) (string, []interface{}, int) {
@@ -1327,60 +1322,48 @@ func (postgresDbService *PostgresDbService) BuildSelectColumnParts(selectCols []
 
 	parts := make([]string, 0, len(selectCols))
 	for _, sel := range selectCols {
-		expr, alias := parseSelectItem(sel)
-		exprNorm := normalizeJSONBPath(expr)
-
-		// wildcard
-		if exprNorm == "*" {
-			parts = append(parts, "*")
-			continue
-		}
-
-		// JSONB expression (leave unquoted)
-		if IsJSONBPath(exprNorm) {
-			if err := ValidateJSONBPath(exprNorm); err == nil {
-				if alias != "" {
-					if ValidateColumnName(alias) == nil {
-						parts = append(parts, fmt.Sprintf("%s AS %s", exprNorm, safeQuoteIdentifier(alias)))
-					} else {
-						parts = append(parts, fmt.Sprintf("%s AS %s", exprNorm, alias))
-					}
-				} else {
-					parts = append(parts, exprNorm)
-				}
-				continue
-			}
-			// fallthrough to other handling if validation fails
-		}
-
-		// simple column
-		if err := ValidateColumnName(expr); err == nil {
-			colQuoted := safeQuoteIdentifier(expr)
-			if alias != "" {
-				if ValidateColumnName(alias) == nil {
-					parts = append(parts, fmt.Sprintf("%s AS %s", colQuoted, safeQuoteIdentifier(alias)))
-				} else {
-					parts = append(parts, fmt.Sprintf("%s AS %s", colQuoted, alias))
-				}
-			} else {
-				parts = append(parts, colQuoted)
-			}
-			continue
-		}
-
-		// function or arbitrary expression - keep as-is but attach alias if present
-		if alias != "" {
-			if ValidateColumnName(alias) == nil {
-				parts = append(parts, fmt.Sprintf("%s AS %s", expr, safeQuoteIdentifier(alias)))
-			} else {
-				parts = append(parts, fmt.Sprintf("%s AS %s", expr, alias))
-			}
-		} else {
-			parts = append(parts, expr)
-		}
+		parts = append(parts, buildSelectColumnPart(sel))
 	}
 
 	return parts
+}
+
+// formatWithAlias appends " AS alias" to base when alias is set, quoting the alias
+// when it is itself a valid column name and leaving it as-is otherwise.
+func formatWithAlias(base, alias string) string {
+	if alias == "" {
+		return base
+	}
+	if ValidateColumnName(alias) == nil {
+		return fmt.Sprintf("%s AS %s", base, safeQuoteIdentifier(alias))
+	}
+	return fmt.Sprintf("%s AS %s", base, alias)
+}
+
+// buildSelectColumnPart formats a single SELECT item (wildcard, JSONB path,
+// simple column, or arbitrary expression/function), attaching its alias if present.
+func buildSelectColumnPart(sel string) string {
+	expr, alias := parseSelectItem(sel)
+	exprNorm := normalizeJSONBPath(expr)
+
+	// wildcard
+	if exprNorm == "*" {
+		return "*"
+	}
+
+	// JSONB expression (leave unquoted)
+	if IsJSONBPath(exprNorm) && ValidateJSONBPath(exprNorm) == nil {
+		return formatWithAlias(exprNorm, alias)
+	}
+	// fallthrough to other handling if it's not a JSONB path or validation fails
+
+	// simple column
+	if ValidateColumnName(expr) == nil {
+		return formatWithAlias(safeQuoteIdentifier(expr), alias)
+	}
+
+	// function or arbitrary expression - keep as-is but attach alias if present
+	return formatWithAlias(expr, alias)
 }
 
 // BuildSelectClause builds the SELECT clause with aggregations and column selection
@@ -1499,7 +1482,7 @@ func (postgresDbService *PostgresDbService) BuildGroupByClause(groupBy []string)
 
 // BuildGroupByClauseWithSelect builds GROUP BY but resolves select aliases to their expressions
 // so callers can use group_by entries that reference select aliases (e.g., actor_name).
-func (postgresDbService *PostgresDbService) BuildGroupByClauseWithSelect(groupBy []string, selectCols []string) string {
+func (postgresDbService *PostgresDbService) BuildGroupByClauseWithSelect(groupBy, selectCols []string) string {
 	if len(groupBy) == 0 {
 		return ""
 	}
@@ -2772,7 +2755,7 @@ func (postgresDbService *PostgresDbService) AnalyzeQuery(query string) ([]string
 
 // DDL Operations
 
-func (r *PostgresDbService) ForeignKeyConstraintExists(tableName string, constraintName string) (bool, error) {
+func (r *PostgresDbService) ForeignKeyConstraintExists(tableName, constraintName string) (bool, error) {
 	var exists bool
 	query := `
         SELECT EXISTS (

@@ -59,7 +59,7 @@ func TestNewDBRegistersPostgresConnector(t *testing.T) {
 
 func TestDatabaseConnectUsesFactory(t *testing.T) {
 	stubFactory := &stubConnectionFactory{db: stubDB{}}
-	db := &pkg.Database{Factory: &pkg.DatabaseConnectorFactory{ConnectorMap: map[string]pkg.ConnectionFactory{
+	db := &pkg.Database{Factory: &pkg.DatabaseConnectorFactory{ConnectorMap: map[string]pkg.ConnectionCreator{
 		"stub": stubFactory,
 	}}}
 

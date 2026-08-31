@@ -172,6 +172,41 @@ func TestBuildSelectColumnParts(t *testing.T) {
 	}
 }
 
+// TestBuildSelectColumnPartsBranches covers every branch of BuildSelectColumnParts:
+// wildcard, simple columns with/without a valid alias, JSONB paths with/without a
+// valid alias, an invalid JSONB path falling back to arbitrary-expression handling,
+// and arbitrary expressions/functions with/without a valid alias.
+func TestBuildSelectColumnPartsBranches(t *testing.T) {
+	svc := &postgres.PostgresDbService{}
+
+	tests := []struct {
+		name     string
+		sel      string
+		expected string
+	}{
+		{"wildcard", "*", "*"},
+		{"simple column no alias", "age", "\"age\""},
+		{"simple column valid alias", "name AS alias", "\"name\" AS \"alias\""},
+		{"simple column invalid alias", "name AS 1bad", "\"name\" AS 1bad"},
+		{"jsonb path no alias", "data->'key'", "data->'key'"},
+		{"jsonb path valid alias", "data->'key' AS myalias", "data->'key' AS \"myalias\""},
+		{"jsonb path invalid alias", "data->'key' AS 1bad", "data->'key' AS 1bad"},
+		{"invalid jsonb path falls back to arbitrary", "data->'key';DROP", "data->'key';DROP"},
+		{"arbitrary expression no alias", "COUNT(id)", "COUNT(id)"},
+		{"arbitrary expression valid alias", "COUNT(id) AS total", "COUNT(id) AS \"total\""},
+		{"arbitrary expression invalid alias", "COUNT(id) AS 1bad", "COUNT(id) AS 1bad"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parts := svc.BuildSelectColumnParts([]string{tt.sel})
+			if len(parts) != 1 || parts[0] != tt.expected {
+				t.Fatalf("expected [%q], got %v", tt.expected, parts)
+			}
+		})
+	}
+}
+
 // JSONB Path Support Tests
 func TestValidateJSONBPath(t *testing.T) {
 	testCases := []struct {
