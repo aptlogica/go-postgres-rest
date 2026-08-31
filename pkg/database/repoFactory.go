@@ -24,13 +24,13 @@ func NewRepository(dbType string, db interfaces.DB) (interfaces.DatabaseRepo, er
 // PostgresRepositoryFactory creates PostgreSQL repository instances
 type PostgresRepositoryFactory struct{}
 
-// CreateRepository implements RepositoryFactory interface for PostgreSQL
+// CreateRepository implements RepositoryCreator interface for PostgreSQL
 func (prf *PostgresRepositoryFactory) CreateRepository(db interfaces.DB) (interfaces.DatabaseRepo, error) {
 	pgService := postgres.NewPostgresDbServiceInstance(db)
 	return postgres.NewDatabaseRepo(pgService), nil
 }
 
 // NewPostgresRepositoryFactory creates a new PostgreSQL repository factory
-func NewPostgresRepositoryFactory() RepositoryFactory {
+func NewPostgresRepositoryFactory() RepositoryCreator {
 	return &PostgresRepositoryFactory{}
 }

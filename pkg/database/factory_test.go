@@ -110,7 +110,7 @@ func TestPostgresConnectionFactoryCreateConnection(t *testing.T) {
 }
 
 // Ensure mock types conform during compile time
-var _ pkg.ConnectionFactory = (*pkg.PostgresConnectionFactory)(nil)
+var _ pkg.ConnectionCreator = (*pkg.PostgresConnectionFactory)(nil)
 var _ interfacespkg.DB = (*mockDB)(nil)
 var _ postgrespkg.DSNBuilder = (*mockDSNBuilder)(nil)
 var _ postgrespkg.Connector = (*mockConnector)(nil)

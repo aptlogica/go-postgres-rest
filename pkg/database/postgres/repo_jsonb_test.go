@@ -99,6 +99,42 @@ func TestBuildJSONBConditionOperators(t *testing.T) {
 	}
 }
 
+// TestBuildJSONBConditionEmptyInList tests that IN/NOT IN with an empty value list yields no condition
+func TestBuildJSONBConditionEmptyInList(t *testing.T) {
+	svc := &postgres.PostgresDbService{}
+
+	for _, operator := range []string{"in", "not_in"} {
+		t.Run(operator, func(t *testing.T) {
+			cond, args, counter := svc.BuildJSONBCondition(models.QueryFilter{
+				Column:   "payload",
+				JSONPath: []string{"status", "code"},
+				Operator: operator,
+				Value:    []string{},
+			}, 1)
+
+			if cond != "" || len(args) != 0 || counter != 1 {
+				t.Fatalf("expected empty condition for empty %s list, got cond=%s args=%v counter=%d", operator, cond, args, counter)
+			}
+		})
+	}
+}
+
+// TestBuildJSONBConditionUnknownOperator tests handling of an unsupported operator
+func TestBuildJSONBConditionUnknownOperator(t *testing.T) {
+	svc := &postgres.PostgresDbService{}
+
+	cond, args, counter := svc.BuildJSONBCondition(models.QueryFilter{
+		Column:   "payload",
+		JSONPath: []string{"status", "code"},
+		Operator: "unsupported_op",
+		Value:    "test",
+	}, 1)
+
+	if cond != "" || len(args) != 0 || counter != 1 {
+		t.Fatalf("expected empty condition for unknown operator, got cond=%s args=%v counter=%d", cond, args, counter)
+	}
+}
+
 // TestBuildJSONBConditionSQLEscaping tests SQL injection prevention
 func TestBuildJSONBConditionSQLEscaping(t *testing.T) {
 	svc := &postgres.PostgresDbService{}

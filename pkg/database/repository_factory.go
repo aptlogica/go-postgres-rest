@@ -10,28 +10,28 @@ import (
 	"github.com/aptlogica/go-postgres-rest/pkg/database/interfaces"
 )
 
-// RepositoryFactory defines the interface for creating repository implementations
+// RepositoryCreator defines the interface for creating repository implementations
 // This allows different database types to provide their own repository implementations
-type RepositoryFactory interface {
+type RepositoryCreator interface {
 	CreateRepository(db interfaces.DB) (interfaces.DatabaseRepo, error)
 }
 
 // RepositoryProvider manages multiple repository factory implementations
 // using a registry pattern for extensibility
 type RepositoryProvider struct {
-	Factories map[string]RepositoryFactory
+	Factories map[string]RepositoryCreator
 }
 
 // NewRepositoryProvider creates a new repository provider
 func NewRepositoryProvider() *RepositoryProvider {
 	return &RepositoryProvider{
-		Factories: make(map[string]RepositoryFactory),
+		Factories: make(map[string]RepositoryCreator),
 	}
 }
 
 // RegisterFactory registers a repository factory for a specific database type
 // This allows extending the provider with new database types without modifying provider code
-func (rp *RepositoryProvider) RegisterFactory(dbType string, factory RepositoryFactory) {
+func (rp *RepositoryProvider) RegisterFactory(dbType string, factory RepositoryCreator) {
 	rp.Factories[dbType] = factory
 }
 

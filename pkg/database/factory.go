@@ -12,27 +12,27 @@ import (
 	"github.com/aptlogica/go-postgres-rest/pkg/database/postgres"
 )
 
-// ConnectionFactory defines the interface for creating database connections
-type ConnectionFactory interface {
+// ConnectionCreator defines the interface for creating database connections
+type ConnectionCreator interface {
 	CreateConnection(cfg *config.DatabaseConfig) (interfaces.DB, error)
 }
 
 // DatabaseConnectorFactory manages multiple database connector implementations
 // using a registry pattern for extensibility
 type DatabaseConnectorFactory struct {
-	ConnectorMap map[string]ConnectionFactory
+	ConnectorMap map[string]ConnectionCreator
 }
 
 // NewDatabaseConnectorFactory creates a new database connector factory
 func NewDatabaseConnectorFactory() *DatabaseConnectorFactory {
 	return &DatabaseConnectorFactory{
-		ConnectorMap: make(map[string]ConnectionFactory),
+		ConnectorMap: make(map[string]ConnectionCreator),
 	}
 }
 
 // RegisterConnector registers a connection factory for a specific database type
 // This allows extending the factory with new database types without modifying factory code
-func (dcf *DatabaseConnectorFactory) RegisterConnector(dbType string, connector ConnectionFactory) {
+func (dcf *DatabaseConnectorFactory) RegisterConnector(dbType string, connector ConnectionCreator) {
 	dcf.ConnectorMap[dbType] = connector
 }
 
@@ -45,7 +45,7 @@ func (dcf *DatabaseConnectorFactory) CreateConnection(dbType string, cfg *config
 	return connector.CreateConnection(cfg)
 }
 
-// PostgresConnectionFactory implements ConnectionFactory for PostgreSQL
+// PostgresConnectionFactory implements ConnectionCreator for PostgreSQL
 type PostgresConnectionFactory struct {
 	dsnBuilder postgres.DSNBuilder
 	connector  postgres.Connector
@@ -53,7 +53,7 @@ type PostgresConnectionFactory struct {
 
 // NewPostgresConnectionFactory creates a new PostgreSQL connection factory
 // It uses dependency injection to make the factory testable
-func NewPostgresConnectionFactory(dsnBuilder postgres.DSNBuilder, connector postgres.Connector) ConnectionFactory {
+func NewPostgresConnectionFactory(dsnBuilder postgres.DSNBuilder, connector postgres.Connector) ConnectionCreator {
 	if dsnBuilder == nil {
 		dsnBuilder = postgres.NewPostgresDSNBuilder()
 	}
