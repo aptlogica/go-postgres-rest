@@ -4,7 +4,7 @@ This guide will get you up and running with go-postgres-rest in under 10 minutes
 
 ## Prerequisites
 
-- Go 1.23 or higher
+- Go 1.26.5 or higher
 - PostgreSQL 12 or higher
 - Docker (optional, for easier database setup)
 
