@@ -158,7 +158,7 @@ func TestCreateCollectionOptions(t *testing.T) {
 		PrimaryKey: []string{"id"},
 	}
 
-	mock.ExpectExec(regexp.QuoteMeta("CREATE TABLE tbl (id INTEGER, PRIMARY KEY (id))")).
+	mock.ExpectExec(regexp.QuoteMeta("CREATE TABLE tbl (\"id\" INTEGER, PRIMARY KEY (\"id\"))")).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	if err := svc.CreateCollection(req); err != nil {

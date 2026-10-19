@@ -91,7 +91,7 @@ func TestRepoWrappersDelegate(t *testing.T) {
 		ForeignKeys: []models.ForeignKeyDef{{Columns: []string{"id"}, ReferencedTable: "public.ref", ReferencedColumns: []string{"id"}}},
 		Indexes:     []models.IndexDefinition{{Columns: []string{"name"}, Unique: true}},
 	}
-	mock.ExpectExec(regexp.QuoteMeta("CREATE TABLE public.test_table (id SERIAL NOT NULL, name TEXT DEFAULT 1, PRIMARY KEY (id), FOREIGN KEY (id) REFERENCES public.ref (id))")).
+	mock.ExpectExec(regexp.QuoteMeta("CREATE TABLE public.test_table (\"id\" SERIAL NOT NULL, \"name\" TEXT DEFAULT 1, PRIMARY KEY (\"id\"), FOREIGN KEY (\"id\") REFERENCES public.ref (\"id\"))")).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec(regexp.QuoteMeta("CREATE UNIQUE INDEX idx_public.test_table_name ON public.test_table (name)")).
 		WillReturnResult(sqlmock.NewResult(0, 0))

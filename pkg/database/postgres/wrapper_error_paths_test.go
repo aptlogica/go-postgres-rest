@@ -72,7 +72,7 @@ func TestWrapperErrorPaths(t *testing.T) {
 	}
 
 	// DDL wrappers
-	mock.ExpectExec(regexp.QuoteMeta("CREATE TABLE public.demo (id SERIAL NOT NULL, PRIMARY KEY (id))")).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec(regexp.QuoteMeta("CREATE TABLE public.demo (\"id\" SERIAL NOT NULL, PRIMARY KEY (\"id\"))")).WillReturnResult(sqlmock.NewResult(0, 0))
 	if err := ddl.CreateCollection(models.CreateTableRequest{Name: "public.demo", Columns: []models.ColumnDefinition{{Name: "id", DataType: "SERIAL", NotNull: true}}, PrimaryKey: []string{"id"}}); err != nil {
 		t.Fatalf("CreateCollection err: %v", err)
 	}
