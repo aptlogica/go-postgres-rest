@@ -679,52 +679,71 @@ func buildCreateTriggerSQL(def models.TriggerDefinition) (string, error) {
 		return "", err
 	}
 
-	timing := strings.ToUpper(strings.Join(strings.Fields(def.Timing), " "))
-	if !validTriggerTimings[timing] {
-		return "", fmt.Errorf("invalid trigger timing %q: must be BEFORE, AFTER or INSTEAD OF", def.Timing)
+	timing, forEach, err := normalizeTriggerTimingAndForEach(def)
+	if err != nil {
+		return "", err
 	}
 
-	forEach := strings.ToUpper(strings.TrimSpace(def.ForEach))
+	events, err := validateTriggerEvents(def, forEach)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("CREATE TRIGGER %s %s %s ON %s FOR EACH %s EXECUTE FUNCTION %s()",
+		safeQuoteIdentifier(def.Name), timing, triggerEventClause(events, def.UpdateOf), def.Table, forEach, fnName), nil
+}
+
+func normalizeTriggerTimingAndForEach(def models.TriggerDefinition) (timing, forEach string, err error) {
+	timing = strings.ToUpper(strings.Join(strings.Fields(def.Timing), " "))
+	if !validTriggerTimings[timing] {
+		return "", "", fmt.Errorf("invalid trigger timing %q: must be BEFORE, AFTER or INSTEAD OF", def.Timing)
+	}
+
+	forEach = strings.ToUpper(strings.TrimSpace(def.ForEach))
 	if forEach == "" {
 		forEach = forEachRow
 	}
 	if forEach != forEachRow && forEach != forEachStmt {
-		return "", fmt.Errorf("invalid for_each %q: must be ROW or STATEMENT", def.ForEach)
+		return "", "", fmt.Errorf("invalid for_each %q: must be ROW or STATEMENT", def.ForEach)
 	}
 	if timing == timingInsteadOf && forEach != forEachRow {
-		return "", fmt.Errorf("INSTEAD OF triggers must be FOR EACH ROW")
+		return "", "", fmt.Errorf("INSTEAD OF triggers must be FOR EACH ROW")
 	}
+	return timing, forEach, nil
+}
 
+func validateTriggerEvents(def models.TriggerDefinition, forEach string) (map[string]bool, error) {
 	events, err := normalizeTriggerEvents(def.Events)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if events[eventTruncate] && forEach != forEachStmt {
-		return "", fmt.Errorf("TRUNCATE triggers must be FOR EACH STATEMENT")
+		return nil, fmt.Errorf("TRUNCATE triggers must be FOR EACH STATEMENT")
 	}
 	if len(def.UpdateOf) > 0 {
 		if !events[eventUpdate] {
-			return "", fmt.Errorf("update_of requires the UPDATE event")
+			return nil, fmt.Errorf("update_of requires the UPDATE event")
 		}
 		if err := validateColumnList(def.UpdateOf); err != nil {
-			return "", err
+			return nil, err
 		}
 	}
+	return events, nil
+}
 
+func triggerEventClause(events map[string]bool, updateOf []string) string {
 	var parts []string
 	for _, ev := range triggerEventOrder {
 		if !events[ev] {
 			continue
 		}
-		if ev == eventUpdate && len(def.UpdateOf) > 0 {
-			parts = append(parts, "UPDATE OF "+quoteIdentifierList(def.UpdateOf))
+		if ev == eventUpdate && len(updateOf) > 0 {
+			parts = append(parts, "UPDATE OF "+quoteIdentifierList(updateOf))
 			continue
 		}
 		parts = append(parts, ev)
 	}
-
-	return fmt.Sprintf("CREATE TRIGGER %s %s %s ON %s FOR EACH %s EXECUTE FUNCTION %s()",
-		safeQuoteIdentifier(def.Name), timing, strings.Join(parts, " OR "), def.Table, forEach, fnName), nil
+	return strings.Join(parts, " OR ")
 }
 
 func normalizeTriggerEvents(events []string) (map[string]bool, error) {
