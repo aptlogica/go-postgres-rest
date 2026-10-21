@@ -962,7 +962,7 @@ func TestDDLAndListCollections(t *testing.T) {
 		Indexes:     []models.IndexDefinition{{Columns: []string{"name"}, Unique: true}},
 	}
 
-	mock.ExpectExec(regexp.QuoteMeta("CREATE TABLE public.test_table (id SERIAL NOT NULL, name TEXT DEFAULT 1, PRIMARY KEY (id), FOREIGN KEY (id) REFERENCES public.ref (id))")).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec(regexp.QuoteMeta("CREATE TABLE public.test_table (\"id\" SERIAL NOT NULL, \"name\" TEXT DEFAULT 1, PRIMARY KEY (\"id\"), FOREIGN KEY (\"id\") REFERENCES public.ref (\"id\"))")).WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec(regexp.QuoteMeta("CREATE UNIQUE INDEX idx_public.test_table_name ON public.test_table (name)")).WillReturnResult(sqlmock.NewResult(0, 0))
 	if err := svc.CreateCollection(tableReq); err != nil {
 		t.Fatalf("create collection failed: %v", err)
@@ -1226,10 +1226,10 @@ func TestBuildColumnDefinitions(t *testing.T) {
 	}
 
 	expected := []string{
-		"id SERIAL NOT NULL",
-		"name TEXT DEFAULT default",
+		"\"id\" SERIAL NOT NULL",
+		"\"name\" TEXT DEFAULT default",
 		// SECURITY: INT is canonicalized to INTEGER; CHECK expression is validated.
-		"age INTEGER NOT NULL UNIQUE CHECK (age > 0)",
+		"\"age\" INTEGER NOT NULL UNIQUE CHECK (age > 0)",
 	}
 
 	for i, expectedDef := range expected {
@@ -1265,8 +1265,8 @@ func TestBuildForeignKeyDefinitions(t *testing.T) {
 	}
 
 	expected := []string{
-		", FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE",
-		", FOREIGN KEY (category_id) REFERENCES categories (id) ON UPDATE SET NULL",
+		", FOREIGN KEY (\"user_id\") REFERENCES users (\"id\") ON DELETE CASCADE",
+		", FOREIGN KEY (\"category_id\") REFERENCES categories (\"id\") ON UPDATE SET NULL",
 	}
 
 	for i, expectedDef := range expected {

@@ -16,20 +16,24 @@ func NewBulkRepo(db *PostgresDbService) *BulkRepoImpl {
 
 // BulkInsert inserts multiple records
 func (b *BulkRepoImpl) BulkInsert(tableName string, records []map[string]interface{}) ([]map[string]interface{}, error) {
-	return b.db.BulkInsert(tableName, records)
+	res, err := b.db.BulkInsert(tableName, records)
+	return res, b.db.ToDBError(err)
 }
 
 // BulkUpdate updates multiple records
 func (b *BulkRepoImpl) BulkUpdate(tableName string, updates []map[string]interface{}, whereColumn string) (int64, error) {
-	return b.db.BulkUpdate(tableName, updates, whereColumn)
+	n, err := b.db.BulkUpdate(tableName, updates, whereColumn)
+	return n, b.db.ToDBError(err)
 }
 
 // BulkDelete deletes multiple records
 func (b *BulkRepoImpl) BulkDelete(tableName string, ids []interface{}, idColumn string) (int64, error) {
-	return b.db.BulkDelete(tableName, ids, idColumn)
+	n, err := b.db.BulkDelete(tableName, ids, idColumn)
+	return n, b.db.ToDBError(err)
 }
 
 // Upsert performs insert or update based on conflict
 func (b *BulkRepoImpl) Upsert(tableName string, data map[string]interface{}, conflictColumns, updateColumns []string) (map[string]interface{}, error) {
-	return b.db.Upsert(tableName, data, conflictColumns, updateColumns)
+	res, err := b.db.Upsert(tableName, data, conflictColumns, updateColumns)
+	return res, b.db.ToDBError(err)
 }

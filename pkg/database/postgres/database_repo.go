@@ -18,10 +18,14 @@ type DatabaseRepoImpl struct {
 	*RelationshipRepoImpl
 	*PerformanceRepoImpl
 	*MigrationRepoImpl
+	*SchemaRepoImpl
 }
 
 // Verify that DatabaseRepoImpl implements DatabaseRepo interface
 var _ interfaces.DatabaseRepo = (*DatabaseRepoImpl)(nil)
+
+// Verify that DatabaseRepoImpl implements SchemaRepo interface
+var _ interfaces.SchemaRepo = (*DatabaseRepoImpl)(nil)
 
 // NewDatabaseRepo creates a new composite DatabaseRepo implementation
 func NewDatabaseRepo(db *PostgresDbService) interfaces.DatabaseRepo {
@@ -33,6 +37,7 @@ func NewDatabaseRepo(db *PostgresDbService) interfaces.DatabaseRepo {
 		RelationshipRepoImpl: NewRelationshipRepo(db),
 		PerformanceRepoImpl:  NewPerformanceRepo(db),
 		MigrationRepoImpl:    NewMigrationRepo(db),
+		SchemaRepoImpl:       NewSchemaRepo(db),
 	}
 }
 
@@ -71,4 +76,9 @@ func (dr *DatabaseRepoImpl) AsPerformanceRepo() interfaces.PerformanceRepo {
 //go:noinline
 func (dr *DatabaseRepoImpl) AsMigrationRepo() interfaces.MigrationRepo {
 	return dr.MigrationRepoImpl
+}
+
+//go:noinline
+func (dr *DatabaseRepoImpl) AsSchemaRepo() interfaces.SchemaRepo {
+	return dr.SchemaRepoImpl
 }

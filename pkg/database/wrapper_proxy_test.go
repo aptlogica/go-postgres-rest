@@ -74,7 +74,7 @@ func TestDDLWrapperDelegationFromDatabasePackage(t *testing.T) {
 	ddl := postgres.NewDDLRepo(svc)
 	const tableName = "public.t"
 
-	mock.ExpectExec(regexp.QuoteMeta("CREATE TABLE public.t (id SERIAL NOT NULL, PRIMARY KEY (id))")).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec(regexp.QuoteMeta("CREATE TABLE public.t (\"id\" SERIAL NOT NULL, PRIMARY KEY (\"id\"))")).WillReturnResult(sqlmock.NewResult(0, 0))
 	if err := ddl.CreateCollection(models.CreateTableRequest{Name: tableName, Columns: []models.ColumnDefinition{{Name: "id", DataType: "SERIAL", NotNull: true}}, PrimaryKey: []string{"id"}}); err != nil {
 		t.Fatalf("CreateCollection: %v", err)
 	}
