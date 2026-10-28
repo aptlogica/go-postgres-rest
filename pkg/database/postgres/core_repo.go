@@ -58,7 +58,7 @@ func (c *CoreRepoImpl) ExecuteFunction(ctx context.Context, name string, args ma
 func (c *CoreRepoImpl) ExecuteRawSQL(ctx context.Context, sql string) error {
 	_, err := c.db.db.ExecContext(ctx, sql)
 	if err != nil {
-		return fmt.Errorf("failed to execute raw SQL: %w", err)
+		return c.db.ToDBError(fmt.Errorf("failed to execute raw SQL: %w", err))
 	}
 	return nil
 }

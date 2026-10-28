@@ -82,6 +82,43 @@ type MigrationRepo interface {
 	RecordMigration(name, sql, checksum string) error
 }
 
+// SchemaRepo covers transactional DDL, constraints, primary keys, trigger functions
+// and triggers. It is kept separate from DatabaseRepo so existing implementations
+// of DatabaseRepo keep compiling; the PostgreSQL repository implements both.
+type SchemaRepo interface {
+	// Transactions
+	// ExecuteInTransaction runs the statements in one transaction. When commit is
+	// false the transaction is always rolled back (dry run / validation).
+	ExecuteInTransaction(ctx context.Context, statements []string, commit bool) error
+
+	// Unique constraints
+	AddUniqueConstraint(ctx context.Context, table string, req models.AddUniqueConstraintRequest) (string, error)
+	DropConstraint(ctx context.Context, table, name string) error
+	ListUniqueConstraints(ctx context.Context, table string) ([]models.UniqueConstraint, error)
+
+	// Primary keys
+	GetPrimaryKey(ctx context.Context, table string) (*models.PrimaryKeyInfo, error)
+	SetPrimaryKey(ctx context.Context, table string, req models.SetPrimaryKeyRequest) error
+
+	// Data pre-checks
+	FindDuplicateRows(ctx context.Context, table string, columns []string, opts models.PreCheckOptions) ([]models.DuplicateGroup, error)
+	FindEmptyRows(ctx context.Context, table string, columns []string, opts models.PreCheckOptions) ([]map[string]any, error)
+
+	// Column defaults; nil def drops the default
+	SetColumnDefault(ctx context.Context, table, column string, def *string) error
+
+	// Trigger functions
+	CreateTriggerFunction(ctx context.Context, def models.TriggerFunctionDefinition) error
+	DropFunction(ctx context.Context, schema, name string) error
+	SetFunctionComment(ctx context.Context, schema, name string, comment *string) error
+	ListTriggerFunctions(ctx context.Context, schema string) ([]models.FunctionInfo, error)
+
+	// Triggers
+	CreateTrigger(ctx context.Context, def models.TriggerDefinition) error
+	DropTrigger(ctx context.Context, table, name string) error
+	ListTriggers(ctx context.Context, table string, opts models.ListTriggersOptions) ([]models.TriggerInfo, error)
+}
+
 // DatabaseRepo is a composite interface that includes all repository operations
 // Implementations should satisfy this interface to provide complete database functionality
 type DatabaseRepo interface {

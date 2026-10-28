@@ -38,6 +38,8 @@ type DatabaseService struct {
 	MigrationService    servicesInterface.MigrationService
 	PerformanceService  servicesInterface.Performance
 	RelationshipService servicesInterface.RelationshipService
+	// SchemaService is nil when the repository does not implement interfaces.SchemaRepo.
+	SchemaService servicesInterface.Schema
 }
 
 func NewDatabaseService() *DatabaseService {
@@ -69,7 +71,7 @@ func NewDatabaseServiceWithInit(cfg *config.Config) (*DatabaseService, error) {
 	}
 
 	// 3️⃣ Services (independent)
-	return &DatabaseService{
+	svc := &DatabaseService{
 		DB:                  db,
 		dbConfig:            &cfg.Database,
 		TableService:        services.NewTableService(repo),
@@ -77,5 +79,9 @@ func NewDatabaseServiceWithInit(cfg *config.Config) (*DatabaseService, error) {
 		MigrationService:    services.NewMigrationService(repo),
 		PerformanceService:  services.NewPerformanceService(repo),
 		RelationshipService: services.NewRelationshipService(repo),
-	}, nil
+	}
+	if schemaRepo, ok := repo.(interfaces.SchemaRepo); ok {
+		svc.SchemaService = services.NewSchemaService(schemaRepo)
+	}
+	return svc, nil
 }

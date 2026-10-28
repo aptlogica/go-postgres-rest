@@ -583,7 +583,7 @@ func (postgresDbService *PostgresDbService) CreateCollection(req models.CreateTa
 
 	// Add primary key
 	if len(req.PrimaryKey) > 0 {
-		query.WriteString(fmt.Sprintf(", PRIMARY KEY (%s)", strings.Join(req.PrimaryKey, ", ")))
+		query.WriteString(fmt.Sprintf(", PRIMARY KEY (%s)", quoteIdentifierList(req.PrimaryKey)))
 	}
 
 	// Add foreign keys
@@ -708,7 +708,7 @@ func (postgresDbService *PostgresDbService) BuildColumnDefinitions(columns []mod
 		}
 
 		var colSb strings.Builder
-		colSb.WriteString(col.Name)
+		colSb.WriteString(safeQuoteIdentifier(col.Name))
 		colSb.WriteString(" ")
 		colSb.WriteString(sanitized.SafeType)
 
@@ -742,11 +742,11 @@ func (postgresDbService *PostgresDbService) BuildForeignKeyDefinitions(foreignKe
 	for _, fk := range foreignKeys {
 		var fkSb strings.Builder
 		fkSb.WriteString(", " + fkClause + " (")
-		fkSb.WriteString(strings.Join(fk.Columns, ", "))
+		fkSb.WriteString(quoteIdentifierList(fk.Columns))
 		fkSb.WriteString(") REFERENCES ")
 		fkSb.WriteString(fk.ReferencedTable)
 		fkSb.WriteString(" (")
-		fkSb.WriteString(strings.Join(fk.ReferencedColumns, ", "))
+		fkSb.WriteString(quoteIdentifierList(fk.ReferencedColumns))
 		fkSb.WriteString(")")
 
 		if fk.OnDelete != "" {
