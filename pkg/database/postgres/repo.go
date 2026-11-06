@@ -851,9 +851,63 @@ func (postgresDbService *PostgresDbService) ToInterfaceSlice(v interface{}) ([]i
 	}
 }
 
+// Allowed values for QueryFilter.Cast
+const (
+	CastText        = "text"
+	CastSafeNumeric = "safe_numeric"
+)
+
+// applyCast wraps an already validated and formatted column expression in a cast.
+// Only CastText and CastSafeNumeric are recognised; any other value returns the
+// expression unchanged, so nothing from the request reaches the SQL.
+// safe_numeric turns values that are not plain numbers into NULL instead of failing the query.
+func applyCast(formattedColumn, cast string) string {
+	switch strings.ToLower(strings.TrimSpace(cast)) {
+	case CastText:
+		return fmt.Sprintf("(%s)::text", formattedColumn)
+	case CastSafeNumeric:
+		return fmt.Sprintf("(CASE WHEN (%s)::text ~ '^-?[0-9]+([.][0-9]+)?$' THEN (%s)::text::numeric END)", formattedColumn, formattedColumn)
+	default:
+		return formattedColumn
+	}
+}
+
+// formatFilterColumn validates the filter column and applies its optional cast.
+func formatFilterColumn(filter models.QueryFilter) (string, error) {
+	formattedColumn, err := ValidateAndFormatColumn(filter.Column)
+	if err != nil {
+		return "", err
+	}
+	return applyCast(formattedColumn, filter.Cast), nil
+}
+
+// BuildJSONBContainsCondition builds "col" @> $n::jsonb for a regular column.
+// A string value is passed as-is (it must be JSON text); any other value is JSON-encoded.
+func (postgresDbService *PostgresDbService) BuildJSONBContainsCondition(filter models.QueryFilter, argCounter int) (string, []interface{}, int) {
+	formattedColumn, err := ValidateAndFormatColumn(filter.Column)
+	if err != nil {
+		return "", nil, argCounter
+	}
+	var value string
+	switch v := filter.Value.(type) {
+	case string:
+		value = v
+	case []byte:
+		value = string(v)
+	default:
+		b, err := json.Marshal(v)
+		if err != nil {
+			return "", nil, argCounter
+		}
+		value = string(b)
+	}
+	condition := fmt.Sprintf("%s @> $%d::jsonb", formattedColumn, argCounter)
+	return condition, []interface{}{value}, argCounter + 1
+}
+
 // BuildSimpleCondition builds conditions for simple operators (=, !=, <, >, etc.)
 func (postgresDbService *PostgresDbService) BuildSimpleCondition(filter models.QueryFilter, operator string, argCounter int) (string, []interface{}, int) {
-	formattedColumn, err := ValidateAndFormatColumn(filter.Column)
+	formattedColumn, err := formatFilterColumn(filter)
 	if err != nil {
 		return "", nil, argCounter
 	}
@@ -869,7 +923,7 @@ func (postgresDbService *PostgresDbService) BuildInCondition(filter models.Query
 		return "", nil, argCounter
 	}
 
-	formattedColumn, err := ValidateAndFormatColumn(filter.Column)
+	formattedColumn, err := formatFilterColumn(filter)
 	if err != nil {
 		return "", nil, argCounter
 	}
@@ -892,7 +946,7 @@ func (postgresDbService *PostgresDbService) BuildInCondition(filter models.Query
 
 // BuildNullCondition builds conditions for IS NULL/IS NOT NULL operators
 func (postgresDbService *PostgresDbService) BuildNullCondition(filter models.QueryFilter, useNot bool, argCounter int) (string, []interface{}, int) {
-	formattedColumn, err := ValidateAndFormatColumn(filter.Column)
+	formattedColumn, err := formatFilterColumn(filter)
 	if err != nil {
 		return "", nil, argCounter
 	}
@@ -1058,6 +1112,8 @@ func (postgresDbService *PostgresDbService) BuildFilterCondition(filter models.Q
 		return postgresDbService.BuildNullCondition(filter, true, argCounter)
 	case "any":
 		return postgresDbService.BuildAnyCondition(filter, argCounter)
+	case "jsonb_contains":
+		return postgresDbService.BuildJSONBContainsCondition(filter, argCounter)
 	default:
 		// This should not happen due to ValidateOperator check above, but keep as safety net
 		return postgresDbService.BuildSimpleCondition(filter, filter.Operator, argCounter)
@@ -1212,12 +1268,18 @@ func (postgresDbService *PostgresDbService) BuildComplexFilter(filter models.Com
 		return "", nil, argCounter
 	}
 
+	// SECURITY: only AND / OR may reach the SQL; anything else falls back to AND.
 	logic := "AND"
-	if filter.Logic != "" {
-		logic = strings.ToUpper(filter.Logic)
+	if strings.EqualFold(strings.TrimSpace(filter.Logic), "OR") {
+		logic = "OR"
 	}
 
-	return strings.Join(conditions, " "+logic+" "), args, argCounter
+	condition := strings.Join(conditions, " "+logic+" ")
+	if filter.Not {
+		// COALESCE so rows where the group is NULL (e.g. empty values) count as "none matched".
+		condition = "NOT COALESCE((" + condition + "), false)"
+	}
+	return condition, args, argCounter
 }
 
 func (postgresDbService *PostgresDbService) BuildAdvancedQuery(tableName string, params models.QueryParams) (string, []interface{}) {
@@ -1420,7 +1482,8 @@ func (postgresDbService *PostgresDbService) BuildWhereClause(params models.Query
 	if params.Complex != nil {
 		condition, newArgs, newArgCounter := postgresDbService.BuildComplexFilter(*params.Complex, argCounter)
 		if condition != "" {
-			whereConditions = append(whereConditions, condition)
+			// Parentheses keep a top-level OR from escaping the AND with the other conditions.
+			whereConditions = append(whereConditions, "("+condition+")")
 			args = append(args, newArgs...)
 			argCounter = newArgCounter
 		}
