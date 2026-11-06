@@ -138,7 +138,7 @@ func TestBuildComplexFilterNot(t *testing.T) {
 
 func TestBuildFilterConditionCast(t *testing.T) {
 	svc := &postgres.PostgresDbService{}
-	numeric := `(CASE WHEN ("duration")::text ~ '^-?[0-9]+([.][0-9]+)?$' THEN ("duration")::text::numeric END)`
+	numeric := `(CASE WHEN btrim(("duration")::text) ~ '^-?[0-9]+([.][0-9]+)?$' THEN btrim(("duration")::text)::numeric END)`
 
 	tests := []struct {
 		name   string

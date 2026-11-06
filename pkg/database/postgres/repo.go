@@ -860,13 +860,15 @@ const (
 // applyCast wraps an already validated and formatted column expression in a cast.
 // Only CastText and CastSafeNumeric are recognised; any other value returns the
 // expression unchanged, so nothing from the request reaches the SQL.
-// safe_numeric turns values that are not plain numbers into NULL instead of failing the query.
+// safe_numeric trims surrounding spaces (" 30 " -> 30) and turns values that are not
+// plain numbers into NULL instead of failing the query.
 func applyCast(formattedColumn, cast string) string {
 	switch strings.ToLower(strings.TrimSpace(cast)) {
 	case CastText:
 		return fmt.Sprintf("(%s)::text", formattedColumn)
 	case CastSafeNumeric:
-		return fmt.Sprintf("(CASE WHEN (%s)::text ~ '^-?[0-9]+([.][0-9]+)?$' THEN (%s)::text::numeric END)", formattedColumn, formattedColumn)
+		trimmed := fmt.Sprintf("btrim((%s)::text)", formattedColumn)
+		return fmt.Sprintf("(CASE WHEN %s ~ '^-?[0-9]+([.][0-9]+)?$' THEN %s::numeric END)", trimmed, trimmed)
 	default:
 		return formattedColumn
 	}
