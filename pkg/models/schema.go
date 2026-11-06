@@ -44,13 +44,20 @@ type QueryFilter struct {
 	JSONPath []string    `json:"json_path,omitempty"` // For JSONB path queries: ["result", "success"]
 	Operator string      `json:"operator"`
 	Value    interface{} `json:"value"`
-	Logic    string      `json:"logic,omitempty"` // "AND" or "OR"
+	Logic    string      `json:"logic,omitempty"` // Not used: filters in a list are always joined by their parent's logic
+	// Cast converts the column before comparing. Allowed: "text", "safe_numeric"
+	// (text that looks like a number becomes numeric, anything else becomes NULL).
+	// Any other value is ignored. Not applied to JSONB path filters.
+	Cast string `json:"cast,omitempty"`
 }
 
 type ComplexFilter struct {
 	Filters []QueryFilter   `json:"filters"`
 	Groups  []ComplexFilter `json:"groups,omitempty"`
-	Logic   string          `json:"logic"` // "AND" or "OR"
+	Logic   string          `json:"logic"` // "AND" or "OR"; anything else is treated as "AND"
+	// Not negates the whole group: NOT COALESCE((...), false).
+	// Rows where the group evaluates to NULL count as "not matching", so they are included.
+	Not bool `json:"not,omitempty"`
 }
 
 type JoinClause struct {

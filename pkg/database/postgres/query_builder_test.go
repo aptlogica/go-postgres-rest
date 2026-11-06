@@ -70,6 +70,145 @@ func TestBuildComplexFilterNested(t *testing.T) {
 	}
 }
 
+func TestBuildComplexFilterLogicWhitelist(t *testing.T) {
+	svc := &postgres.PostgresDbService{}
+	two := []models.QueryFilter{
+		{Column: "a", Operator: "eq", Value: 1},
+		{Column: "b", Operator: "eq", Value: 2},
+	}
+
+	tests := []struct {
+		logic string
+		want  string
+	}{
+		{"", `"a" = $1 AND "b" = $2`},
+		{"and", `"a" = $1 AND "b" = $2`},
+		{"AND", `"a" = $1 AND "b" = $2`},
+		{"or", `"a" = $1 OR "b" = $2`},
+		{" Or ", `"a" = $1 OR "b" = $2`},
+		{"XOR", `"a" = $1 AND "b" = $2`},
+		{"OR 1=1 OR", `"a" = $1 AND "b" = $2`},
+		{"; DROP TABLE users; --", `"a" = $1 AND "b" = $2`},
+	}
+	for _, tt := range tests {
+		cond, _, _ := svc.BuildComplexFilter(models.ComplexFilter{Logic: tt.logic, Filters: two}, 1)
+		if cond != tt.want {
+			t.Fatalf("logic %q: got %q want %q", tt.logic, cond, tt.want)
+		}
+	}
+}
+
+func TestBuildComplexFilterNot(t *testing.T) {
+	svc := &postgres.PostgresDbService{}
+
+	// top-level NOT
+	cond, args, next := svc.BuildComplexFilter(models.ComplexFilter{
+		Logic: "or",
+		Not:   true,
+		Filters: []models.QueryFilter{
+			{Column: "tags", Operator: "any", Value: "archived"},
+			{Column: "title", Operator: "ilike", Value: "%draft%"},
+		},
+	}, 1)
+	want := `NOT COALESCE(($1 = ANY("tags") OR "title" ILIKE $2), false)`
+	if cond != want || len(args) != 2 || next != 3 {
+		t.Fatalf("got %q args=%v next=%d, want %q", cond, args, next, want)
+	}
+
+	// nested NOT group
+	cond, args, _ = svc.BuildComplexFilter(models.ComplexFilter{
+		Logic:   "and",
+		Filters: []models.QueryFilter{{Column: "status", Operator: "eq", Value: "open"}},
+		Groups: []models.ComplexFilter{{
+			Logic:   "or",
+			Not:     true,
+			Filters: []models.QueryFilter{{Column: "a", Operator: "eq", Value: 1}, {Column: "b", Operator: "eq", Value: 2}},
+		}},
+	}, 1)
+	want = `"status" = $1 AND (NOT COALESCE(("a" = $2 OR "b" = $3), false))`
+	if cond != want || len(args) != 3 {
+		t.Fatalf("got %q args=%v, want %q", cond, args, want)
+	}
+
+	// NOT with no valid conditions stays empty (no bare "NOT COALESCE((), false)")
+	if cond, _, _ := svc.BuildComplexFilter(models.ComplexFilter{Not: true}, 1); cond != "" {
+		t.Fatalf("expected empty condition for empty NOT group, got %q", cond)
+	}
+}
+
+func TestBuildFilterConditionCast(t *testing.T) {
+	svc := &postgres.PostgresDbService{}
+	numeric := `(CASE WHEN btrim(("duration")::text) ~ '^-?[0-9]+([.][0-9]+)?$' THEN btrim(("duration")::text)::numeric END)`
+
+	tests := []struct {
+		name   string
+		filter models.QueryFilter
+		want   string
+	}{
+		{"text ilike", models.QueryFilter{Column: "owner_id", Operator: "ilike", Value: "%3fa2%", Cast: "text"}, `("owner_id")::text ILIKE $1`},
+		{"text upper-case", models.QueryFilter{Column: "owner_id", Operator: "eq", Value: "x", Cast: "TEXT"}, `("owner_id")::text = $1`},
+		{"text is_null", models.QueryFilter{Column: "owner_id", Operator: "is_null", Cast: "text"}, `("owner_id")::text IS NULL`},
+		{"text in", models.QueryFilter{Column: "owner_id", Operator: "in", Value: []string{"a", "b"}, Cast: "text"}, `("owner_id")::text IN ($1, $2)`},
+		{"safe_numeric gte", models.QueryFilter{Column: "duration", Operator: "gte", Value: 10, Cast: "safe_numeric"}, numeric + ` >= $1`},
+		{"safe_numeric not_in", models.QueryFilter{Column: "duration", Operator: "not_in", Value: []int{1}, Cast: "safe_numeric"}, numeric + ` NOT IN ($1)`},
+		{"unknown cast ignored", models.QueryFilter{Column: "duration", Operator: "gt", Value: 1, Cast: "int); DROP TABLE x; --"}, `"duration" > $1`},
+		{"no cast unchanged", models.QueryFilter{Column: "duration", Operator: "gt", Value: 1}, `"duration" > $1`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cond, _, _ := svc.BuildFilterCondition(tt.filter, 1)
+			if cond != tt.want {
+				t.Fatalf("got %q want %q", cond, tt.want)
+			}
+		})
+	}
+}
+
+func TestBuildFilterConditionJSONBContains(t *testing.T) {
+	svc := &postgres.PostgresDbService{}
+
+	tests := []struct {
+		name    string
+		value   interface{}
+		wantArg string
+	}{
+		{"json string", `["rec_42"]`, `["rec_42"]`},
+		{"slice", []string{"rec_42"}, `["rec_42"]`},
+		{"map", map[string]interface{}{"id": "rec_42"}, `{"id":"rec_42"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cond, args, next := svc.BuildFilterCondition(models.QueryFilter{Column: "links", Operator: "jsonb_contains", Value: tt.value}, 3)
+			if cond != `"links" @> $3::jsonb` || next != 4 {
+				t.Fatalf("got %q next=%d", cond, next)
+			}
+			if len(args) != 1 || args[0] != tt.wantArg {
+				t.Fatalf("got args %v want %q", args, tt.wantArg)
+			}
+		})
+	}
+
+	// value that cannot be JSON-encoded gives an empty condition
+	if cond, _, _ := svc.BuildFilterCondition(models.QueryFilter{Column: "links", Operator: "jsonb_contains", Value: make(chan int)}, 1); cond != "" {
+		t.Fatalf("expected empty condition for unencodable value, got %q", cond)
+	}
+}
+
+func TestBuildWhereClauseWrapsComplexFilter(t *testing.T) {
+	svc := &postgres.PostgresDbService{}
+	where, _, _ := svc.BuildWhereClause(models.QueryParams{
+		Complex: &models.ComplexFilter{Logic: "or", Filters: []models.QueryFilter{
+			{Column: "a", Operator: "eq", Value: 1},
+			{Column: "b", Operator: "eq", Value: 2},
+		}},
+		Filters: []models.QueryFilter{{Column: "tenant_id", Operator: "eq", Value: 7}},
+	}, 1)
+	want := ` WHERE ("a" = $1 OR "b" = $2) AND ("tenant_id" = $3)`
+	if where != want {
+		t.Fatalf("got %q want %q", where, want)
+	}
+}
+
 func TestBuildAdvancedQueryFullFeatures(t *testing.T) {
 	svc := &postgres.PostgresDbService{}
 	limit := 5
